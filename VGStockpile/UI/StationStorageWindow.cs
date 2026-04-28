@@ -354,14 +354,23 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.alignment = TextAlignmentOptions.Left;
 
         // Jumps column header: icon instead of a letter. Right-anchored
-        // 20x20 image inside a JumpsCellWidth-wide cell.
+        // 20x20 image inside a JumpsCellWidth-wide cell. The full cell is
+        // a transparent hit-target so the tooltip fires across the whole
+        // 36px slot.
         var jumpsHeaderGo = new GameObject("JumpsHeader",
-            typeof(RectTransform), typeof(LayoutElement));
+            typeof(RectTransform), typeof(LayoutElement), typeof(Image));
         jumpsHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
         var jhle = jumpsHeaderGo.GetComponent<LayoutElement>();
         jhle.preferredWidth  = JumpsCellWidth;
         jhle.preferredHeight = 24f;
         jhle.flexibleWidth   = 0f;
+        var jhHit = jumpsHeaderGo.GetComponent<Image>();
+        jhHit.color = new Color(0f, 0f, 0f, 0f);
+
+        var jhTip = jumpsHeaderGo.AddComponent<TooltipSource>();
+        jhTip.Title    = "Jumps";
+        jhTip.BodyText = "Number of jumpgate hops from your current system to the station's system. " +
+                         "0 means same system; '-' means no jumpgate route is available.";
 
         var jhImgGo = new GameObject("Icon",
             typeof(RectTransform), typeof(Image));

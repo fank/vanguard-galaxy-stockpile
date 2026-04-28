@@ -8,11 +8,11 @@ namespace VGStockpile.UI;
 
 internal sealed class StationStorageIcon : MonoBehaviour
 {
-    // SkillIcons1_103 at atlas rect (463, 199). Multiple Sprite instances
+    // SkillIcons1_31 at atlas rect (463, 793). Multiple Sprite instances
     // share this name in the runtime registry; disambiguate by rect.
-    private const string SpriteName  = "SkillIcons1_103";
+    private const string SpriteName  = "SkillIcons1_31";
     private const int    SpriteRectX = 463;
-    private const int    SpriteRectY = 199;
+    private const int    SpriteRectY = 793;
 
     private Image           _iconImg     = null!;
     private TextMeshProUGUI _fallbackTxt = null!;

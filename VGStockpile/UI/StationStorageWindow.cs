@@ -43,9 +43,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         (MaterialCategory.Ore,             "OreIcons_2",       192, 384, "Ores"),
         (MaterialCategory.RefinedCanister, "MaterialIcons_0",    0,  96, "Refined Canisters"),
-        (MaterialCategory.RefinedGoods,    "CraftingIcons_0",    0, 384, "Refined Products"),
-        (MaterialCategory.Crystal,         "CrystalIcons_5",     0,   0, "Crystals"),
-        (MaterialCategory.TradeGoods,      "CraftingIcons_19", 384,  96, "Trade Goods"),
+        (MaterialCategory.RefinedGoods,    "CraftingIcons2_0",   0,   0, "Refined Products"),
+        (MaterialCategory.Crystal,         "CrystalIcons_0",     0,  96, "Crystals"),
+        (MaterialCategory.TradeGoods,      "CraftingIcons_1",   96, 384, "Trade Goods"),
         (MaterialCategory.Salvage,         "SalvageIcons_0",     0,  96, "Salvage"),
     };
 

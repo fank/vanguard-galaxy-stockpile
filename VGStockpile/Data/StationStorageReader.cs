@@ -10,8 +10,13 @@ namespace VGStockpile.Data;
 internal sealed class StationStorageReader
 {
     private readonly ManualLogSource _log;
+    private readonly System.Func<bool> _verbose;
 
-    public StationStorageReader(ManualLogSource log) { _log = log; }
+    public StationStorageReader(ManualLogSource log, System.Func<bool> verbose)
+    {
+        _log = log;
+        _verbose = verbose;
+    }
 
     public IReadOnlyList<StationStorageSnapshot> CaptureAll()
     {
@@ -22,16 +27,35 @@ internal sealed class StationStorageReader
             return System.Array.Empty<StationStorageSnapshot>();
         }
 
-        var result = new List<StationStorageSnapshot>();
+        var verbose = _verbose();
+        var result  = new List<StationStorageSnapshot>();
+        var skipped = 0;
 
         foreach (var poi in data.allPointsOfInterest)
         {
             if (poi is not SpaceStation st) continue;
             var inv = st.materialStorage;
-            if (inv is null) continue;
+            if (inv is null)
+            {
+                if (verbose) _log.LogDebug($"reader: '{st.name}' has null materialStorage; skipping.");
+                continue;
+            }
 
             var items = ReadItems(inv);
-            if (items.Count == 0) continue;
+            if (items.Count == 0)
+            {
+                skipped++;
+                if (verbose) _log.LogDebug($"reader: '{st.name}' has empty materialStorage; skipping.");
+                continue;
+            }
+
+            if (verbose)
+            {
+                var dump = string.Join(", ",
+                    items.Select(kv => $"{kv.Key}={kv.Value}"));
+                _log.LogDebug(
+                    $"reader: '{st.name}' (sys '{st.system?.name}', fac '{st.faction?.identifier}') -> {dump}");
+            }
 
             result.Add(new StationStorageSnapshot(
                 StationId:   st.guid ?? "",
@@ -41,6 +65,9 @@ internal sealed class StationStorageReader
                 Items:       items));
         }
 
+        _log.LogInfo(
+            $"reader: captured {result.Count} station(s); " +
+            $"skipped {skipped} empty.");
         return result;
     }
 

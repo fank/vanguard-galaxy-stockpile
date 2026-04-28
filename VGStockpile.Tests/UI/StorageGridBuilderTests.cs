@@ -139,9 +139,35 @@ public class StorageGridBuilderTests
     [Fact]
     public void Zero_Quantity_Is_Treated_As_Missing()
     {
-        var snaps = new[] { Snap("s1", "Stash", "Sol", "fac.a", ("ti", 0)) };
+        // Snapshot with qty=0 produces a row with one empty cell (no other
+        // station to widen the column set). Visible-total filter then drops
+        // the row entirely.
+        var snaps = new[] {
+            Snap("s1", "ZeroStash", "Sol", "fac.a", ("ti", 0)),
+            Snap("s2", "RealStash", "Sol", "fac.a", ("ti", 5)),
+        };
         var r = new StorageGridBuilder(DefaultCatalog()).Build(snaps, hideOres: false);
 
-        Assert.Equal("", r.Rows[0].Cells[0]);
+        Assert.Equal("RealStash", r.Rows[0].Snapshot.StationName);
+        Assert.Equal("5", r.Rows[0].Cells[0]);
+        // ZeroStash has visible total 0 → dropped.
+        Assert.Single(r.Rows);
+    }
+
+    [Fact]
+    public void Ore_Only_Station_Is_Hidden_When_Hide_Ores_Is_True()
+    {
+        // OreOnly has only iron-ore; with hideOres=true its only column is
+        // filtered out, leaving the row empty. Without the visible-total
+        // filter the grid would render an empty row for it.
+        var snaps = new[]
+        {
+            Snap("s1", "OreOnly",  "Sol", "fac.a", ("iron-ore", 9_000)),
+            Snap("s2", "Refining", "Sol", "fac.a", ("ti", 100)),
+        };
+
+        var hidden = new StorageGridBuilder(DefaultCatalog()).Build(snaps, hideOres: true);
+        Assert.Single(hidden.Rows);
+        Assert.Equal("Refining", hidden.Rows[0].Snapshot.StationName);
     }
 }

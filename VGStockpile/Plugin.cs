@@ -37,7 +37,7 @@ public class Plugin : BaseUnityPlugin
 
         Cfg     = new StockpileConfig(Config);
         Catalog = new MaterialCatalog();
-        Reader  = new StationStorageReader(Log);
+        Reader  = new StationStorageReader(Log, () => Cfg.Verbose.Value);
         Locator = new StationLocator(Log);
         Builder = new StorageGridBuilder(Catalog);
 
@@ -84,8 +84,8 @@ public class Plugin : BaseUnityPlugin
         if (_window is null) return;
         try
         {
+            // Reader logs its own per-station summary; no extra log here.
             var snapshots = Reader.CaptureAll();
-            Log.LogInfo($"VGStockpile: captured {snapshots.Count} station(s) with stored materials.");
             _window.Toggle(snapshots);
         }
         catch (System.Exception ex)

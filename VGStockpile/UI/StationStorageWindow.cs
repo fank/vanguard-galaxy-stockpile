@@ -214,6 +214,10 @@ internal sealed class StationStorageWindow : MonoBehaviour
         }
     }
 
+    // Shared widths so header icon cells and data quantity cells line up.
+    private const float StationLabelWidth = 240f;
+    private const float MaterialCellWidth = 56f;
+
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
     {
         var rowGo = NewRow(isHeader: true);
@@ -223,8 +227,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
         labelGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
-        labelGo.GetComponent<LayoutElement>().preferredWidth = 240f;
-        labelGo.GetComponent<LayoutElement>().flexibleWidth  = 0f;
+        var lle = labelGo.GetComponent<LayoutElement>();
+        lle.preferredWidth = StationLabelWidth;
+        lle.flexibleWidth  = 0f;
         var lblText = labelGo.GetComponent<TextMeshProUGUI>();
         lblText.text      = "Station";
         lblText.fontSize  = 12f;
@@ -238,9 +243,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
                 typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             cellGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
             var le = cellGo.GetComponent<LayoutElement>();
-            le.preferredWidth = 28f;
+            le.preferredWidth  = MaterialCellWidth;
             le.preferredHeight = 28f;
-            le.flexibleWidth  = 0f;
+            le.flexibleWidth   = 0f;
 
             var img = cellGo.GetComponent<Image>();
             img.preserveAspect = true;
@@ -252,7 +257,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
             }
             else
             {
-                // Fallback: tiny "?" if vanilla has no icon for this id.
                 img.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
             }
 
@@ -274,7 +278,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
             typeof(TextMeshProUGUI));
         labelGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
         var lle = labelGo.GetComponent<LayoutElement>();
-        lle.preferredWidth = 240f;
+        lle.preferredWidth = StationLabelWidth;
         lle.flexibleWidth  = 0f;
         var lblText = labelGo.GetComponent<TextMeshProUGUI>();
         lblText.text      = label;
@@ -299,7 +303,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
                 typeof(TextMeshProUGUI));
             cellGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
             var ce = cellGo.GetComponent<LayoutElement>();
-            ce.preferredWidth = 60f;
+            ce.preferredWidth = MaterialCellWidth;
             ce.flexibleWidth  = 0f;
             var ctxt = cellGo.GetComponent<TextMeshProUGUI>();
             ctxt.text      = qty;

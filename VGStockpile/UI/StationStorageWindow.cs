@@ -353,18 +353,32 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.fontStyle = FontStyles.Bold;
         lblText.alignment = TextAlignmentOptions.Left;
 
+        // Jumps column header: icon instead of a letter. Right-anchored
+        // 20x20 image inside a JumpsCellWidth-wide cell.
         var jumpsHeaderGo = new GameObject("JumpsHeader",
-            typeof(RectTransform), typeof(LayoutElement),
-            typeof(TextMeshProUGUI));
+            typeof(RectTransform), typeof(LayoutElement));
         jumpsHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
         var jhle = jumpsHeaderGo.GetComponent<LayoutElement>();
-        jhle.preferredWidth = JumpsCellWidth;
-        jhle.flexibleWidth  = 0f;
-        var jhText = jumpsHeaderGo.GetComponent<TextMeshProUGUI>();
-        jhText.text      = "J";
-        jhText.fontSize  = 12f;
-        jhText.fontStyle = FontStyles.Bold;
-        jhText.alignment = TextAlignmentOptions.MidlineRight;
+        jhle.preferredWidth  = JumpsCellWidth;
+        jhle.preferredHeight = 24f;
+        jhle.flexibleWidth   = 0f;
+
+        var jhImgGo = new GameObject("Icon",
+            typeof(RectTransform), typeof(Image));
+        var jhirt = (RectTransform)jhImgGo.transform;
+        jhirt.SetParent(jumpsHeaderGo.transform, worldPositionStays: false);
+        jhirt.anchorMin = new Vector2(1f, 0.5f);
+        jhirt.anchorMax = new Vector2(1f, 0.5f);
+        jhirt.pivot     = new Vector2(1f, 0.5f);
+        jhirt.sizeDelta = new Vector2(20f, 20f);
+        jhirt.anchoredPosition = Vector2.zero;
+        var jhImg = jhImgGo.GetComponent<Image>();
+        jhImg.preserveAspect = true;
+        jhImg.raycastTarget  = false;
+        var jhSprite = SpriteLookup.FindByNameAndRect("Map_Poi_Location_Jumpgate", 0, 0)
+                       ?? SpriteLookup.FindByName("Map_Poi_Location_Jumpgate");
+        if (jhSprite != null) { jhImg.sprite = jhSprite; jhImg.color = Color.white; }
+        else                  { jhImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.6f); }
 
         foreach (var id in materialIds)
         {

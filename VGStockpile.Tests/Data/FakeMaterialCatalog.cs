@@ -5,11 +5,15 @@ namespace VGStockpile.Tests.Data;
 
 internal sealed class FakeMaterialCatalog : IMaterialCatalog
 {
-    private readonly Dictionary<string, (string Name, MaterialCategory Cat)> _entries = new();
+    private readonly Dictionary<string, Entry> _entries = new();
 
-    public FakeMaterialCatalog Add(string id, string name, MaterialCategory cat)
+    private sealed record Entry(string Name, MaterialCategory Cat, int CatOrder, int GameplayOrder);
+
+    public FakeMaterialCatalog Add(
+        string id, string name, MaterialCategory cat,
+        int catOrder = 0, int gameplayOrder = 0)
     {
-        _entries[id] = (name, cat);
+        _entries[id] = new Entry(name, cat, catOrder, gameplayOrder);
         return this;
     }
 
@@ -18,4 +22,13 @@ internal sealed class FakeMaterialCatalog : IMaterialCatalog
 
     public MaterialCategory Category(string id) =>
         _entries.TryGetValue(id, out var e) ? e.Cat : MaterialCategory.Unknown;
+
+    public int CategoryOrder(string id) =>
+        _entries.TryGetValue(id, out var e) ? e.CatOrder : int.MaxValue;
+
+    public int GameplayTypeOrder(string id) =>
+        _entries.TryGetValue(id, out var e) ? e.GameplayOrder : int.MaxValue;
+
+    public string SortName(string id) =>
+        _entries.TryGetValue(id, out var e) ? e.Name : id;
 }

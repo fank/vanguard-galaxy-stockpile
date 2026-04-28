@@ -47,6 +47,24 @@ internal sealed class MaterialCatalog : IMaterialCatalog
         return id.IndexOf("canister", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
+    public int CategoryOrder(string materialTypeId)
+    {
+        var type = LookupType(materialTypeId);
+        return type is null ? int.MaxValue : (int)type.itemCategory;
+    }
+
+    public int GameplayTypeOrder(string materialTypeId)
+    {
+        var type = LookupType(materialTypeId);
+        return type is null ? int.MaxValue : (int)type.gameplayType;
+    }
+
+    public string SortName(string materialTypeId)
+    {
+        var type = LookupType(materialTypeId);
+        return type?.name ?? materialTypeId;
+    }
+
     public Sprite? Icon(string materialTypeId) => LookupType(materialTypeId)?.icon;
 
     public InventoryItemType? GetItemType(string materialTypeId) => LookupType(materialTypeId);

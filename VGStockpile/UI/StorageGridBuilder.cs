@@ -14,11 +14,16 @@ internal sealed class StorageGridBuilder
         IReadOnlyList<StationStorageSnapshot> snapshots,
         ISet<MaterialCategory> visibleCategories)
     {
+        // Column order matches vanilla Inventory.SortByCategory:
+        //   orderby itemCategory, gameplayType, name
+        // (decompiled from the unstripped game assembly).
         var visibleIds = snapshots
             .SelectMany(s => s.Items.Keys)
             .Distinct()
             .Where(id => IsVisible(id, visibleCategories))
-            .OrderBy(id => _catalog.DisplayName(id), System.StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => _catalog.CategoryOrder(id))
+            .ThenBy(id => _catalog.GameplayTypeOrder(id))
+            .ThenBy(id => _catalog.SortName(id), System.StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         var displayNames = visibleIds

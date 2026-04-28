@@ -236,18 +236,34 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.fontStyle = FontStyles.Bold;
         lblText.alignment = TextAlignmentOptions.Left;
 
-        // One icon cell per material column.
+        // One icon cell per material column. Icon is right-anchored within
+        // its 56px slot so the icon's right edge aligns with the right edge
+        // of every quantity cell below it.
         foreach (var id in materialIds)
         {
-            var cellGo = new GameObject("MaterialIcon",
+            var cellGo = new GameObject("MaterialIconCell",
                 typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             cellGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
             var le = cellGo.GetComponent<LayoutElement>();
             le.preferredWidth  = MaterialCellWidth;
             le.preferredHeight = 28f;
             le.flexibleWidth   = 0f;
+            // Transparent hit graphic so ItemTooltipSource on this cell
+            // receives pointer events across the full 56px slot.
+            var hit = cellGo.GetComponent<Image>();
+            hit.color = new Color(0f, 0f, 0f, 0f);
 
-            var img = cellGo.GetComponent<Image>();
+            var imgGo = new GameObject("Icon",
+                typeof(RectTransform), typeof(Image));
+            var irt = (RectTransform)imgGo.transform;
+            irt.SetParent(cellGo.transform, worldPositionStays: false);
+            irt.anchorMin = new Vector2(1f, 0.5f);
+            irt.anchorMax = new Vector2(1f, 0.5f);
+            irt.pivot     = new Vector2(1f, 0.5f);
+            irt.sizeDelta = new Vector2(24f, 24f);
+            irt.anchoredPosition = Vector2.zero;
+
+            var img = imgGo.GetComponent<Image>();
             img.preserveAspect = true;
             var sprite = _catalog.Icon(id);
             if (sprite != null)
@@ -260,6 +276,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
                 img.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
             }
 
+            // Tooltip on the parent cell so the full 56px hot zone triggers it,
+            // matching the quantity cells below.
             AttachItemTooltip(cellGo, id);
         }
     }

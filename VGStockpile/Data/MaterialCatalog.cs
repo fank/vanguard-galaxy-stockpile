@@ -41,10 +41,12 @@ internal sealed class MaterialCatalog : IMaterialCatalog
     private static bool IsCanister(InventoryItemType type)
     {
         // Canister-style refined products are extracted/carryable items like
-        // "Canister of Refined Oxide". Match on identifier substring (more
-        // stable than localized displayName).
+        // "Canister of Refined Oxide", whose identifier starts with
+        // "canister" (e.g. canister-of-oxide). 'Contains' would also catch
+        // standard refined products like "Oxide Canister" (id: oxide-canister)
+        // — those are *not* canister-type, so use StartsWith instead.
         var id = type.identifier ?? "";
-        return id.IndexOf("canister", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        return id.StartsWith("canister", System.StringComparison.OrdinalIgnoreCase);
     }
 
     public int CategoryOrder(string materialTypeId)

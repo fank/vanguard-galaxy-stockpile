@@ -317,12 +317,25 @@ internal sealed class StationStorageWindow : MonoBehaviour
         }
     }
 
-    private const float StationLabelWidth = 240f;
+    // Total width allocated to the leftmost (sticky) column = icon + label.
+    // Header rows use the same total so the material columns to the right
+    // align between header and data rows.
+    private const float FactionIconWidth = 24f;
+    private const float StationLabelWidth = 240f - FactionIconWidth;
     private const float MaterialCellWidth = 56f;
 
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
     {
         var rowGo = NewRow(isHeader: true);
+
+        // Empty icon-width spacer so material columns align with data rows
+        // (which have a 24px faction icon cell here).
+        var spacer = new GameObject("HeaderIconSpacer",
+            typeof(RectTransform), typeof(LayoutElement));
+        spacer.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var sle = spacer.GetComponent<LayoutElement>();
+        sle.preferredWidth = FactionIconWidth;
+        sle.flexibleWidth  = 0f;
 
         var labelGo = new GameObject("StationHeader",
             typeof(RectTransform), typeof(LayoutElement),
@@ -377,6 +390,29 @@ internal sealed class StationStorageWindow : MonoBehaviour
         StationStorageSnapshot snapshot)
     {
         var rowGo = NewRow(isHeader: false);
+
+        // Faction icon cell (24px, leftmost). Falls back to a faint grey
+        // square if the faction has no icon resource.
+        var iconGo = new GameObject("FactionIcon",
+            typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+        iconGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var iconLE = iconGo.GetComponent<LayoutElement>();
+        iconLE.preferredWidth  = FactionIconWidth;
+        iconLE.preferredHeight = 20f;
+        iconLE.flexibleWidth   = 0f;
+        var factionImg = iconGo.GetComponent<Image>();
+        factionImg.preserveAspect = true;
+        factionImg.raycastTarget  = false;
+        var factionSprite = _catalog.FactionIcon(snapshot.FactionId);
+        if (factionSprite != null)
+        {
+            factionImg.sprite = factionSprite;
+            factionImg.color  = Color.white;
+        }
+        else
+        {
+            factionImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.4f);
+        }
 
         var labelGo = new GameObject("Label",
             typeof(RectTransform), typeof(LayoutElement),

@@ -71,6 +71,21 @@ internal sealed class MaterialCatalog : IMaterialCatalog
 
     public InventoryItemType? GetItemType(string materialTypeId) => LookupType(materialTypeId);
 
+    // Faction icons live at Resources/Sprites/FactionIcons/{identifier}Icon —
+    // mirrors what Faction.GetIcon() does internally. Cached per id so the
+    // Resources.Load call only fires once per faction.
+    private readonly Dictionary<string, Sprite?> _factionIconCache = new();
+
+    public Sprite? FactionIcon(string factionId)
+    {
+        if (string.IsNullOrEmpty(factionId)) return null;
+        if (_factionIconCache.TryGetValue(factionId, out var cached)) return cached;
+
+        var sprite = Resources.Load<Sprite>($"Sprites/FactionIcons/{factionId}Icon");
+        _factionIconCache[factionId] = sprite;
+        return sprite;
+    }
+
     private InventoryItemType? LookupType(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;

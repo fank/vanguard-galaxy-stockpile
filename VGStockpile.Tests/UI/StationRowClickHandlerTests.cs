@@ -22,8 +22,12 @@ public class StationRowClickHandlerTests
     }
 
     private static StationStorageSnapshot Snap() => new(
-        "s1", "Helios", "Sol", "fac.a",
-        new Dictionary<string, int> { ["ti"] = 1 });
+        StationId:   "s1",
+        StationName: "Helios",
+        SystemGuid:  "sys-sol",
+        SystemName:  "Sol",
+        FactionId:   "fac.a",
+        Items:       new Dictionary<string, int> { ["ti"] = 1 });
 
     [Fact]
     public void Click_Invokes_Locator_With_Snapshot()

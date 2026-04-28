@@ -13,8 +13,12 @@ public class StorageGridBuilderTests
         string id, string name, string system, string faction,
         params (string mat, int qty)[] items)
         => new(
-            id, name, system, faction,
-            items.ToDictionary(i => i.mat, i => i.qty));
+            StationId:   id,
+            StationName: name,
+            SystemGuid:  $"sys-{system}",
+            SystemName:  system,
+            FactionId:   faction,
+            Items:       items.ToDictionary(i => i.mat, i => i.qty));
 
     private static FakeMaterialCatalog DefaultCatalog() =>
         new FakeMaterialCatalog()

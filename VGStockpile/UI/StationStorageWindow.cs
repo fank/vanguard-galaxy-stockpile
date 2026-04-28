@@ -26,6 +26,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
         Array.Empty<StationStorageSnapshot>();
+    private IReadOnlyDictionary<string, int> _jumpDistances =
+        new Dictionary<string, int>();
 
     // Color scheme matches VGHangar's filter buttons.
     private static readonly Color BtnActive   = new(0.30f, 0.40f, 0.50f, 0.85f);
@@ -76,6 +78,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
     public void Show(IReadOnlyList<StationStorageSnapshot> snapshots)
     {
         _currentSnapshots = snapshots;
+        _jumpDistances    = JumpDistances.ComputeFromCurrent();
         gameObject.SetActive(true);
         Render();
     }
@@ -317,11 +320,11 @@ internal sealed class StationStorageWindow : MonoBehaviour
         }
     }
 
-    // Total width allocated to the leftmost (sticky) column = icon + label.
-    // Header rows use the same total so the material columns to the right
-    // align between header and data rows.
+    // Leftmost (sticky) area: faction icon + station label + jumps cell.
+    // Sum is shared by header and data rows so the material columns line up.
     private const float FactionIconWidth = 24f;
-    private const float StationLabelWidth = 240f - FactionIconWidth;
+    private const float JumpsCellWidth   = 36f;
+    private const float StationLabelWidth = 240f - FactionIconWidth - JumpsCellWidth;
     private const float MaterialCellWidth = 56f;
 
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
@@ -349,6 +352,19 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.fontSize  = 12f;
         lblText.fontStyle = FontStyles.Bold;
         lblText.alignment = TextAlignmentOptions.Left;
+
+        var jumpsHeaderGo = new GameObject("JumpsHeader",
+            typeof(RectTransform), typeof(LayoutElement),
+            typeof(TextMeshProUGUI));
+        jumpsHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var jhle = jumpsHeaderGo.GetComponent<LayoutElement>();
+        jhle.preferredWidth = JumpsCellWidth;
+        jhle.flexibleWidth  = 0f;
+        var jhText = jumpsHeaderGo.GetComponent<TextMeshProUGUI>();
+        jhText.text      = "J";
+        jhText.fontSize  = 12f;
+        jhText.fontStyle = FontStyles.Bold;
+        jhText.alignment = TextAlignmentOptions.MidlineRight;
 
         foreach (var id in materialIds)
         {
@@ -430,6 +446,22 @@ internal sealed class StationStorageWindow : MonoBehaviour
         var btn = labelGo.AddComponent<Button>();
         var snap = snapshot;
         btn.onClick.AddListener(() => _onLabelClick(snap));
+
+        // Jump distance cell: number of jumpgate hops from the player's
+        // current system. "—" when unreachable; "0" when in the same system.
+        var jumpsGo = new GameObject("Jumps",
+            typeof(RectTransform), typeof(LayoutElement),
+            typeof(TextMeshProUGUI));
+        jumpsGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var jle = jumpsGo.GetComponent<LayoutElement>();
+        jle.preferredWidth = JumpsCellWidth;
+        jle.flexibleWidth  = 0f;
+        var jtxt = jumpsGo.GetComponent<TextMeshProUGUI>();
+        jtxt.text      = _jumpDistances.TryGetValue(snapshot.SystemGuid, out var jumps)
+                            ? jumps.ToString()
+                            : "-";
+        jtxt.fontSize  = 12f;
+        jtxt.alignment = TextAlignmentOptions.MidlineRight;
 
         for (int i = 0; i < materialIds.Count; i++)
         {

@@ -35,6 +35,7 @@ internal sealed class StationStorageReader
             result.Add(new StationStorageSnapshot(
                 StationId:   st.guid ?? "",
                 StationName: st.name ?? "",
+                SystemGuid:  st.system?.guid ?? "",
                 SystemName:  st.system?.name ?? "",
                 FactionId:   st.faction?.identifier ?? "",
                 Items:       items));

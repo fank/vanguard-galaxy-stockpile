@@ -12,12 +12,12 @@ internal sealed class StorageGridBuilder
 
     public GridResult Build(
         IReadOnlyList<StationStorageSnapshot> snapshots,
-        bool hideOres)
+        ISet<MaterialCategory> visibleCategories)
     {
         var visibleIds = snapshots
             .SelectMany(s => s.Items.Keys)
             .Distinct()
-            .Where(id => !hideOres || _catalog.Category(id) != MaterialCategory.Ore)
+            .Where(id => IsVisible(id, visibleCategories))
             .OrderBy(id => _catalog.DisplayName(id), System.StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -38,9 +38,7 @@ internal sealed class StorageGridBuilder
                 return (Row: new GridRow(s, cells), Total: visibleTotal);
             })
             // Drop rows whose visible total is 0 — happens when the only
-            // materials a station holds are filtered out (e.g. an ore-only
-            // station with hideOres=true). Without this filter the grid shows
-            // empty rows for those stations.
+            // materials a station holds are filtered out.
             .Where(t => t.Total > 0)
             .OrderByDescending(t => t.Total)
             .ThenBy(t => t.Row.Snapshot.StationName, System.StringComparer.OrdinalIgnoreCase)
@@ -48,5 +46,14 @@ internal sealed class StorageGridBuilder
             .ToArray();
 
         return new GridResult(visibleIds, displayNames, rows);
+    }
+
+    private bool IsVisible(string id, ISet<MaterialCategory> visible)
+    {
+        var cat = _catalog.Category(id);
+        // Unknown is always shown — we don't want to silently drop columns
+        // we couldn't classify.
+        if (cat == MaterialCategory.Unknown) return true;
+        return visible.Contains(cat);
     }
 }

@@ -1,6 +1,6 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using Behaviour.Item;
 using Behaviour.UI.Tooltip;
 using TMPro;
 using UnityEngine;
@@ -13,24 +13,43 @@ internal sealed class StationStorageWindow : MonoBehaviour
 {
     private RectTransform _root        = null!;
     private RectTransform _gridContent = null!;
-    private Toggle        _hideOres    = null!;
+    private RectTransform _filterStrip = null!;
     private GameObject    _emptyState  = null!;
 
-    private StorageGridBuilder            _builder         = null!;
-    private MaterialCatalog               _catalog         = null!;
-    private Func<bool>                    _hideOresDefault = null!;
-    private Action<StationStorageSnapshot> _onLabelClick   = null!;
-    private Func<bool>                    _verbose         = () => false;
-    private Action<string>                _log             = _ => { };
+    private StorageGridBuilder              _builder         = null!;
+    private MaterialCatalog                 _catalog         = null!;
+    private Func<HashSet<MaterialCategory>> _initialActive   = null!;
+    private Action<HashSet<MaterialCategory>> _onActiveChanged = null!;
+    private Action<StationStorageSnapshot>  _onLabelClick    = null!;
+    private Func<bool>                      _verbose         = () => false;
+    private Action<string>                  _log             = _ => { };
+
+    private readonly HashSet<MaterialCategory> _active = new();
+    private readonly Dictionary<MaterialCategory, Image> _categoryButtons = new();
 
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
         Array.Empty<StationStorageSnapshot>();
+
+    // Color scheme matches VGHangar's filter buttons.
+    private static readonly Color BtnActive   = new(0.30f, 0.40f, 0.50f, 0.85f);
+    private static readonly Color BtnInactive = new(0.20f, 0.20f, 0.20f, 0.80f);
+
+    // Visual descriptors for each filter button.
+    private static readonly (MaterialCategory Cat, string SpriteName, string Label)[] FilterDefs =
+    {
+        (MaterialCategory.Ore,        "OreIcons_2",       "Ores"),
+        (MaterialCategory.Refined,    "MaterialIcons_0",  "Refined Canisters"),
+        (MaterialCategory.Crystal,    "CrystalIcons_5",   "Crystals"),
+        (MaterialCategory.TradeGoods, "CraftingIcons_0",  "Trade Goods"),
+        (MaterialCategory.Salvage,    "SalvageIcons_0",   "Salvage"),
+    };
 
     public static StationStorageWindow Create(
         Canvas hudCanvas,
         StorageGridBuilder builder,
         MaterialCatalog catalog,
-        Func<bool> hideOresDefault,
+        Func<HashSet<MaterialCategory>> initialActive,
+        Action<HashSet<MaterialCategory>> onActiveChanged,
         Action<StationStorageSnapshot> onLabelClick,
         Func<bool> verbose,
         Action<string> log)
@@ -42,13 +61,15 @@ internal sealed class StationStorageWindow : MonoBehaviour
         go.transform.SetParent(hudCanvas.transform, worldPositionStays: false);
 
         var w = go.GetComponent<StationStorageWindow>();
-        w._root            = (RectTransform)go.transform;
-        w._builder         = builder;
-        w._catalog         = catalog;
-        w._hideOresDefault = hideOresDefault;
-        w._onLabelClick    = onLabelClick;
-        w._verbose         = verbose;
-        w._log             = log;
+        w._root             = (RectTransform)go.transform;
+        w._builder          = builder;
+        w._catalog          = catalog;
+        w._initialActive    = initialActive;
+        w._onActiveChanged  = onActiveChanged;
+        w._onLabelClick     = onLabelClick;
+        w._verbose          = verbose;
+        w._log              = log;
+        foreach (var c in initialActive()) w._active.Add(c);
         w.BuildLayout();
         w.Hide();
         return w;
@@ -57,7 +78,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     public void Show(IReadOnlyList<StationStorageSnapshot> snapshots)
     {
         _currentSnapshots = snapshots;
-        if (_hideOres != null) _hideOres.isOn = _hideOresDefault();
         gameObject.SetActive(true);
         Render();
     }
@@ -99,7 +119,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot     = new Vector2(0.5f, 1f);
-        rt.sizeDelta = new Vector2(0f, 32f);
+        rt.sizeDelta = new Vector2(0f, 40f);
         rt.anchoredPosition = Vector2.zero;
         header.GetComponent<Image>().color = new Color(0.12f, 0.14f, 0.18f, 1f);
 
@@ -111,21 +131,24 @@ internal sealed class StationStorageWindow : MonoBehaviour
         trt.sizeDelta = new Vector2(220f, 0f);
         trt.anchoredPosition = new Vector2(12f, 0f);
 
-        var toggleGo = new GameObject("HideOres",
-            typeof(RectTransform), typeof(Toggle), typeof(Image));
-        var togRt = (RectTransform)toggleGo.transform;
-        togRt.SetParent(header.transform, worldPositionStays: false);
-        togRt.anchorMin = new Vector2(1f, 0.5f);
-        togRt.anchorMax = new Vector2(1f, 0.5f);
-        togRt.pivot     = new Vector2(1f, 0.5f);
-        togRt.sizeDelta = new Vector2(140f, 24f);
-        togRt.anchoredPosition = new Vector2(-60f, 0f);
-        _hideOres = toggleGo.GetComponent<Toggle>();
-        _hideOres.onValueChanged.AddListener(_ => Render());
-        var togLabel = MakeLabel("Label", toggleGo.transform, "Hide ores", 12f, FontStyles.Normal);
-        var tlRt = (RectTransform)togLabel.transform;
-        tlRt.anchorMin = Vector2.zero; tlRt.anchorMax = Vector2.one;
-        tlRt.offsetMin = Vector2.zero; tlRt.offsetMax = Vector2.zero;
+        // Filter strip: row of category-toggle buttons centered to the right
+        // of the title.
+        var stripGo = new GameObject("FilterStrip",
+            typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        var strt = (RectTransform)stripGo.transform;
+        strt.SetParent(header.transform, worldPositionStays: false);
+        strt.anchorMin = new Vector2(1f, 0.5f);
+        strt.anchorMax = new Vector2(1f, 0.5f);
+        strt.pivot     = new Vector2(1f, 0.5f);
+        strt.sizeDelta = new Vector2(220f, 32f);
+        strt.anchoredPosition = new Vector2(-64f, 0f);
+        var hlg = stripGo.GetComponent<HorizontalLayoutGroup>();
+        hlg.spacing = 6f;
+        hlg.childAlignment = TextAnchor.MiddleRight;
+        hlg.childForceExpandWidth  = false;
+        hlg.childForceExpandHeight = false;
+        _filterStrip = strt;
+        BuildCategoryButtons();
 
         var closeGo = new GameObject("Close",
             typeof(RectTransform), typeof(Image), typeof(Button));
@@ -142,11 +165,70 @@ internal sealed class StationStorageWindow : MonoBehaviour
         var clrt = (RectTransform)clbl.transform;
         clrt.anchorMin = Vector2.zero; clrt.anchorMax = Vector2.one;
         clrt.offsetMin = Vector2.zero; clrt.offsetMax = Vector2.zero;
+        var clblText = clbl.GetComponent<TextMeshProUGUI>();
+        clblText.alignment = TextAlignmentOptions.Center;
+        clblText.color     = Color.white;
+    }
+
+    private void BuildCategoryButtons()
+    {
+        foreach (var (cat, sprName, label) in FilterDefs)
+        {
+            var btnGo = new GameObject($"Filter_{cat}",
+                typeof(RectTransform), typeof(Image), typeof(Button),
+                typeof(LayoutElement));
+            btnGo.transform.SetParent(_filterStrip, worldPositionStays: false);
+            var le = btnGo.GetComponent<LayoutElement>();
+            le.preferredWidth  = 30f;
+            le.preferredHeight = 30f;
+            le.flexibleWidth   = 0f;
+
+            var bg = btnGo.GetComponent<Image>();
+            bg.color = _active.Contains(cat) ? BtnActive : BtnInactive;
+            _categoryButtons[cat] = bg;
+
+            var btn = btnGo.GetComponent<Button>();
+            var captured = cat;
+            btn.onClick.AddListener(() => OnFilterClicked(captured));
+
+            // Inner icon Image — fits inside with a small inset so the
+            // background tint is visible as a border.
+            var iconGo = new GameObject("Icon",
+                typeof(RectTransform), typeof(Image));
+            var irt = (RectTransform)iconGo.transform;
+            irt.SetParent(btnGo.transform, worldPositionStays: false);
+            irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
+            irt.offsetMin = new Vector2(3f, 3f);
+            irt.offsetMax = new Vector2(-3f, -3f);
+            var iconImg = iconGo.GetComponent<Image>();
+            iconImg.preserveAspect = true;
+            iconImg.raycastTarget  = false;
+            var sprite = SpriteLookup.FindByName(sprName);
+            if (sprite != null) { iconImg.sprite = sprite; iconImg.color = Color.white; }
+            else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }
+
+            // Plain TooltipSource (not ItemTooltipSource) — vanilla treats
+            // these as named hover regions with a title + body.
+            var tip = btnGo.AddComponent<TooltipSource>();
+            tip.Title    = label;
+            tip.BodyText = $"Toggle visibility of {label} in the grid.";
+        }
+    }
+
+    private void OnFilterClicked(MaterialCategory cat)
+    {
+        if (_active.Contains(cat)) _active.Remove(cat);
+        else                       _active.Add(cat);
+
+        if (_categoryButtons.TryGetValue(cat, out var bg))
+            bg.color = _active.Contains(cat) ? BtnActive : BtnInactive;
+
+        _onActiveChanged(new HashSet<MaterialCategory>(_active));
+        Render();
     }
 
     private void BuildGrid()
     {
-        // Outer ScrollRect — fills the panel below the header.
         var scroll = new GameObject("Scroll",
             typeof(RectTransform), typeof(ScrollRect), typeof(Image));
         var srt = (RectTransform)scroll.transform;
@@ -154,11 +236,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
         srt.anchorMin = new Vector2(0f, 0f);
         srt.anchorMax = new Vector2(1f, 1f);
         srt.offsetMin = new Vector2(8f, 8f);
-        srt.offsetMax = new Vector2(-8f, -40f);
+        srt.offsetMax = new Vector2(-8f, -48f);
         scroll.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.30f);
 
-        // Viewport — required by ScrollRect to clip overflowing content.
-        // RectMask2D does the actual clipping; the Image is the mask graphic.
         var viewport = new GameObject("Viewport",
             typeof(RectTransform), typeof(Image), typeof(RectMask2D));
         var vrt = (RectTransform)viewport.transform;
@@ -167,10 +247,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
         vrt.anchorMax = new Vector2(1f, 1f);
         vrt.offsetMin = Vector2.zero;
         vrt.offsetMax = Vector2.zero;
-        viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f); // transparent
+        viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
 
-        // Content — sizes itself to its rows on both axes so the ScrollRect
-        // can scroll horizontally when the row width exceeds the viewport.
         var content = new GameObject("Content",
             typeof(RectTransform), typeof(VerticalLayoutGroup),
             typeof(ContentSizeFitter));
@@ -206,7 +284,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         rt.anchorMin = new Vector2(0f, 0f);
         rt.anchorMax = new Vector2(1f, 1f);
         rt.offsetMin = new Vector2(0f, 0f);
-        rt.offsetMax = new Vector2(0f, -40f);
+        rt.offsetMax = new Vector2(0f, -48f);
         var lbl = go.GetComponent<TextMeshProUGUI>();
         lbl.alignment = TextAlignmentOptions.Center;
         _emptyState = go;
@@ -218,7 +296,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         for (int i = _gridContent.childCount - 1; i >= 0; i--)
             Destroy(_gridContent.GetChild(i).gameObject);
 
-        var grid = _builder.Build(_currentSnapshots, _hideOres.isOn);
+        var grid = _builder.Build(_currentSnapshots, _active);
 
         if (grid.Rows.Count == 0)
         {
@@ -241,36 +319,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
         if (_verbose()) StartCoroutine(LogGeometryNextFrame());
     }
 
-    private System.Collections.IEnumerator LogGeometryNextFrame()
-    {
-        // Wait one frame so Unity's layout system propagates sizes through
-        // ContentSizeFitter / HorizontalLayoutGroup before we sample.
-        yield return null;
-
-        string Fmt(string name, RectTransform? rt)
-        {
-            if (rt == null) return $"{name}: <null>";
-            var r = rt.rect;
-            return $"{name}: {r.width:F0}x{r.height:F0}";
-        }
-
-        var rootRT = _root;
-        var contentRT = _gridContent;
-        var firstRow = contentRT != null && contentRT.childCount > 0
-            ? contentRT.GetChild(0) as RectTransform
-            : null;
-        var viewport = contentRT?.parent as RectTransform;
-
-        _log(
-            "geometry: " +
-            $"{Fmt("root", rootRT)}, " +
-            $"{Fmt("viewport", viewport)}, " +
-            $"{Fmt("content", contentRT)}, " +
-            $"{Fmt("row0", firstRow)}, " +
-            $"rows={contentRT?.childCount ?? 0}");
-    }
-
-    // Shared widths so header icon cells and data quantity cells line up.
     private const float StationLabelWidth = 240f;
     private const float MaterialCellWidth = 56f;
 
@@ -278,7 +326,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         var rowGo = NewRow(isHeader: true);
 
-        // Sticky left "Station" cell.
         var labelGo = new GameObject("StationHeader",
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
@@ -292,9 +339,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.fontStyle = FontStyles.Bold;
         lblText.alignment = TextAlignmentOptions.Left;
 
-        // One icon cell per material column. Icon is right-anchored within
-        // its 56px slot so the icon's right edge aligns with the right edge
-        // of every quantity cell below it.
         foreach (var id in materialIds)
         {
             var cellGo = new GameObject("MaterialIconCell",
@@ -304,8 +348,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
             le.preferredWidth  = MaterialCellWidth;
             le.preferredHeight = 28f;
             le.flexibleWidth   = 0f;
-            // Transparent hit graphic so ItemTooltipSource on this cell
-            // receives pointer events across the full 56px slot.
             var hit = cellGo.GetComponent<Image>();
             hit.color = new Color(0f, 0f, 0f, 0f);
 
@@ -321,19 +363,11 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
             var img = imgGo.GetComponent<Image>();
             img.preserveAspect = true;
+            img.raycastTarget  = false;
             var sprite = _catalog.Icon(id);
-            if (sprite != null)
-            {
-                img.sprite = sprite;
-                img.color  = Color.white;
-            }
-            else
-            {
-                img.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
-            }
+            if (sprite != null) { img.sprite = sprite; img.color = Color.white; }
+            else                { img.color  = new Color(0.3f, 0.3f, 0.3f, 0.6f); }
 
-            // Tooltip on the parent cell so the full 56px hot zone triggers it,
-            // matching the quantity cells below.
             AttachItemTooltip(cellGo, id);
         }
     }
@@ -346,7 +380,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         var rowGo = NewRow(isHeader: false);
 
-        // Sticky station label cell (clickable for locate).
         var labelGo = new GameObject("Label",
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
@@ -358,19 +391,16 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lblText.text      = label;
         lblText.fontSize  = 12f;
         lblText.alignment = TextAlignmentOptions.Left;
-        lblText.color     = new Color(0.78f, 0.85f, 1f, 1f); // hint of clickability
+        lblText.color     = new Color(0.78f, 0.85f, 1f, 1f);
 
         var btn = labelGo.AddComponent<Button>();
         var snap = snapshot;
         btn.onClick.AddListener(() => _onLabelClick(snap));
 
-        // One quantity cell per material column. Cells get the same vanilla
-        // item tooltip on hover so the player knows which material the
-        // quantity belongs to.
         for (int i = 0; i < materialIds.Count; i++)
         {
-            var id   = materialIds[i];
-            var qty  = cells[i];
+            var id  = materialIds[i];
+            var qty = cells[i];
 
             var cellGo = new GameObject("Cell",
                 typeof(RectTransform), typeof(LayoutElement),
@@ -384,8 +414,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
             ctxt.fontSize  = 12f;
             ctxt.alignment = TextAlignmentOptions.MidlineRight;
 
-            // Only attach tooltip if the cell has content; otherwise hovering
-            // empty space pops a tooltip, which is noisy.
             if (!string.IsNullOrEmpty(qty))
                 AttachItemTooltip(cellGo, id);
         }
@@ -412,10 +440,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         var type = _catalog.GetItemType(materialTypeId);
         if (type is null) return;
-
-        // ItemTooltipSource is the component vanilla item slots use. It needs
-        // a Graphic to receive pointer events — every cell we attach to
-        // already has either a TextMeshProUGUI or an Image.
         var src = go.AddComponent<ItemTooltipSource>();
         src.SetItem(
             item:        type,
@@ -435,5 +459,26 @@ internal sealed class StationStorageWindow : MonoBehaviour
         t.fontStyle = style;
         t.alignment = TextAlignmentOptions.MidlineLeft;
         return go;
+    }
+
+    private IEnumerator LogGeometryNextFrame()
+    {
+        yield return null;
+
+        string Fmt(string n, RectTransform? rt) =>
+            rt == null ? $"{n}: <null>" : $"{n}: {rt.rect.width:F0}x{rt.rect.height:F0}";
+
+        var firstRow = _gridContent != null && _gridContent.childCount > 0
+            ? _gridContent.GetChild(0) as RectTransform
+            : null;
+        var viewport = _gridContent?.parent as RectTransform;
+
+        _log(
+            "geometry: " +
+            $"{Fmt("root", _root)}, " +
+            $"{Fmt("viewport", viewport)}, " +
+            $"{Fmt("content", _gridContent)}, " +
+            $"{Fmt("row0", firstRow)}, " +
+            $"rows={_gridContent?.childCount ?? 0}");
     }
 }

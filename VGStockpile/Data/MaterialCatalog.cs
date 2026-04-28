@@ -28,10 +28,10 @@ internal sealed class MaterialCatalog : IMaterialCatalog
         {
             ItemCategory.Ore             => MaterialCategory.Ore,
             ItemCategory.RefinedProduct  => MaterialCategory.Refined,
-            ItemCategory.Crystal
-                or ItemCategory.TradeGoods
-                or ItemCategory.Salvage
-                or ItemCategory.Junk     => MaterialCategory.Component,
+            ItemCategory.Crystal         => MaterialCategory.Crystal,
+            ItemCategory.TradeGoods      => MaterialCategory.TradeGoods,
+            ItemCategory.Salvage         => MaterialCategory.Salvage,
+            ItemCategory.Junk            => MaterialCategory.Other,
             _                            => MaterialCategory.Unknown,
         };
     }

@@ -74,10 +74,11 @@ public class Plugin : BaseUnityPlugin
             hudCanvas,
             Builder,
             Catalog,
-            hideOresDefault: () => Cfg.HideOresByDefault.Value,
-            onLabelClick:    snap => clickHandler.Click(snap),
-            verbose:         () => Cfg.Verbose.Value,
-            log:             msg => Log.LogDebug(msg));
+            initialActive:    () => Cfg.GetActive(),
+            onActiveChanged:  active => Cfg.SetActive(active),
+            onLabelClick:     snap => clickHandler.Click(snap),
+            verbose:          () => Cfg.Verbose.Value,
+            log:              msg => Log.LogDebug(msg));
 
         _icon = StationStorageIcon.Create(
             hudCanvas,

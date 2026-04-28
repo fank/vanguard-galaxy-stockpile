@@ -30,6 +30,12 @@
     <Reference Include="Assembly-CSharp" Condition="Exists('..\VGStockpile\lib\Assembly-CSharp.dll')">
       <HintPath>..\VGStockpile\lib\Assembly-CSharp.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.UI" Condition="Exists('..\VGStockpile\lib\UnityEngine.UI.dll')">
+      <HintPath>..\VGStockpile\lib\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro" Condition="Exists('..\VGStockpile\lib\Unity.TextMeshPro.dll')">
+      <HintPath>..\VGStockpile\lib\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,5 @@
 using BepInEx.Logging;
-using Behaviour.GalaxyMap;
+using Behaviour.UI.Side_Menu;
 using Source.Galaxy;
 using Source.Galaxy.POI;
 using VGStockpile.Data;
@@ -14,16 +14,14 @@ internal sealed class StationLocator : IStationLocator
 
     public void Locate(StationStorageSnapshot snapshot)
     {
-        var mgr = AbstractGalaxyMapManager.current;
-        if (mgr is null)
+        var sidePanel = SidePanel.instance;
+        if (sidePanel is null)
         {
             _log.LogWarning(
-                $"GalaxyMapManager not initialized; cannot locate {snapshot.StationName}.");
+                $"SidePanel not initialized; cannot locate {snapshot.StationName}.");
             return;
         }
 
-        // Resolve the live SpaceStation POI by stable id. Snapshot is a flat
-        // record so we re-look-up every time (cheap; happens on click only).
         var data = GalaxyMapData.current;
         var poi  = data?.GetPointOfInterest(snapshot.StationId);
         if (poi is not SpaceStation station)
@@ -33,20 +31,7 @@ internal sealed class StationLocator : IStationLocator
             return;
         }
 
-        // Best-guess sequence. Vanilla "Locate" exact chain is throw-stubbed
-        // in the publicized DLL; this mirrors the available public API:
-        //   1. Switch the map to the station's home system.
-        //   2. Mark the station as the current map focus.
-        //   3. Make sure the map window is visible.
-        if (station.system is SystemMapData sys)
-        {
-            mgr.ShowSystemMap(sys);
-        }
-        mgr.focusPointOfInterest = station;
-
-        if (mgr.mapWindow != null && !mgr.mapWindow.gameObject.activeSelf)
-        {
-            mgr.mapWindow.gameObject.SetActive(true);
-        }
+        // Vanilla "Locate" path — same coroutine the mission UI uses.
+        sidePanel.StartCoroutine(sidePanel.OpenMapAndFocusPoi(station, waitForClose: false));
     }
 }

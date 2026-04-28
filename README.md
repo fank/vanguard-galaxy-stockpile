@@ -1,8 +1,8 @@
 # VGStockpile — Galaxy-wide station stockpile overview for Vanguard Galaxy
 
-A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single window showing every station's stored materials in one grid. Stations as rows, materials as columns. Pure observer — VGStockpile never modifies a save file.
-
 ![Stockpile window](docs/screenshots/stockpile-window.jpg)
+
+A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single window showing every station's stored materials in one grid. Stations as rows, materials as columns. Pure observer — VGStockpile never modifies a save file.
 
 ## Features
 
@@ -26,10 +26,8 @@ A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single windo
 | Key | Default | Purpose |
 |---|---|---|
 | `UI.ActiveCategories` | `RefinedCanister,RefinedGoods,Crystal,TradeGoods,Salvage,Other` | Comma-separated list of visible categories. Toggling a filter button updates this. |
-| `UI.IconRightPadding` / `UI.IconTopPadding` | `24` / `12` | HUD icon position from the top-right corner. |
+| `UI.IconRightPadding` / `UI.IconTopPadding` | `128` / `12` | HUD icon position from the top-right corner. |
 | `UI.CloseWindowOnLocate` | `true` | Auto-close the window when a station label is clicked. |
-| `Diagnostics.Verbose` | `false` | Per-station item dump and grid geometry log. |
-| `Diagnostics.DumpIconsOnce` | `false` | Dumps every loaded `Sprite` to `BepInEx/cache/vgstockpile-icons/` (with a manifest) ~8s after game start, then flips back to false. Used for picking new icons. |
 
 ## Build (for contributors)
 

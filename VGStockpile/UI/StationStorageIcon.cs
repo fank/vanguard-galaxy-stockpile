@@ -68,7 +68,7 @@ internal sealed class StationStorageIcon : MonoBehaviour
         icon._iconImg     = iconImg;
         icon._fallbackTxt = lbl;
         icon._log         = log;
-        icon.TryResolveSprite(verboseLog: true);
+        icon.TryResolveSprite();
 
         var button = go.GetComponent<Button>();
         button.onClick.AddListener(() => onClick());
@@ -80,28 +80,17 @@ internal sealed class StationStorageIcon : MonoBehaviour
         if (_resolved) return;
         if (Time.unscaledTime < _nextRetry) return;
         _nextRetry = Time.unscaledTime + 1f;
-        TryResolveSprite(verboseLog: false);
+        TryResolveSprite();
     }
 
-    private void TryResolveSprite(bool verboseLog)
+    private void TryResolveSprite()
     {
-        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY, _log);
-        if (sprite is null)
-        {
-            if (verboseLog)
-                _log.LogWarning(
-                    $"StationStorageIcon: sprite '{SpriteName}' not yet loaded; " +
-                    "falling back to 'STK' label and retrying once per second.");
-            return;
-        }
+        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY);
+        if (sprite is null) return;
 
         _iconImg.sprite = sprite;
         _iconImg.color  = Color.white;
         _fallbackTxt.gameObject.SetActive(false);
         _resolved = true;
-        _log.LogInfo(
-            $"StationStorageIcon: resolved sprite '{SpriteName}' " +
-            $"(texture '{sprite.texture?.name}', " +
-            $"native {(int)sprite.rect.width}x{(int)sprite.rect.height}).");
     }
 }

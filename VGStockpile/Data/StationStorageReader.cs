@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using BepInEx.Logging;
 using Source.Galaxy;
 using Source.Galaxy.POI;
@@ -10,15 +9,8 @@ namespace VGStockpile.Data;
 internal sealed class StationStorageReader
 {
     private readonly ManualLogSource _log;
-    private readonly System.Func<bool> _verbose;
-    private readonly IMaterialCatalog? _catalogForLog;
 
-    public StationStorageReader(ManualLogSource log, System.Func<bool> verbose, IMaterialCatalog? catalogForLog = null)
-    {
-        _log = log;
-        _verbose = verbose;
-        _catalogForLog = catalogForLog;
-    }
+    public StationStorageReader(ManualLogSource log) { _log = log; }
 
     public IReadOnlyList<StationStorageSnapshot> CaptureAll()
     {
@@ -29,40 +21,16 @@ internal sealed class StationStorageReader
             return System.Array.Empty<StationStorageSnapshot>();
         }
 
-        var verbose = _verbose();
-        var result  = new List<StationStorageSnapshot>();
-        var skipped = 0;
+        var result = new List<StationStorageSnapshot>();
 
         foreach (var poi in data.allPointsOfInterest)
         {
             if (poi is not SpaceStation st) continue;
             var inv = st.materialStorage;
-            if (inv is null)
-            {
-                if (verbose) _log.LogDebug($"reader: '{st.name}' has null materialStorage; skipping.");
-                continue;
-            }
+            if (inv is null) continue;
 
             var items = ReadItems(inv);
-            if (items.Count == 0)
-            {
-                skipped++;
-                if (verbose) _log.LogDebug($"reader: '{st.name}' has empty materialStorage; skipping.");
-                continue;
-            }
-
-            if (verbose)
-            {
-                var dump = string.Join(", ", items.Select(kv =>
-                {
-                    var cat = _catalogForLog?.Category(kv.Key);
-                    return cat is null
-                        ? $"{kv.Key}={kv.Value}"
-                        : $"{kv.Key}[{cat}]={kv.Value}";
-                }));
-                _log.LogDebug(
-                    $"reader: '{st.name}' (sys '{st.system?.name}', fac '{st.faction?.identifier}') -> {dump}");
-            }
+            if (items.Count == 0) continue;
 
             result.Add(new StationStorageSnapshot(
                 StationId:   st.guid ?? "",
@@ -72,9 +40,6 @@ internal sealed class StationStorageReader
                 Items:       items));
         }
 
-        _log.LogInfo(
-            $"reader: captured {result.Count} station(s); " +
-            $"skipped {skipped} empty.");
         return result;
     }
 

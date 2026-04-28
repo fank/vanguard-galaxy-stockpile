@@ -3,7 +3,6 @@ using BepInEx.Logging;
 using UnityEngine;
 using VGStockpile.Config;
 using VGStockpile.Data;
-using VGStockpile.Diagnostics;
 using VGStockpile.Locate;
 using VGStockpile.UI;
 
@@ -38,7 +37,7 @@ public class Plugin : BaseUnityPlugin
 
         Cfg     = new StockpileConfig(Config);
         Catalog = new MaterialCatalog();
-        Reader  = new StationStorageReader(Log, () => Cfg.Verbose.Value, Catalog);
+        Reader  = new StationStorageReader(Log);
         Locator = new StationLocator(Log);
         Builder = new StorageGridBuilder(Catalog);
 
@@ -46,16 +45,7 @@ public class Plugin : BaseUnityPlugin
         // and at unpredictable times depending on save load. A polling scout
         // searches for the side-menu tab labels ("Cargo" / "Armory" /
         // "Materials") and gives us the right anchor canvas once they exist.
-        HudAnchorScout.Begin(
-            onFound:  AttachIcon,
-            log:      Log,
-            verbose:  Cfg.Verbose.Value);
-
-        if (Cfg.DumpIconsOnce.Value)
-        {
-            IconDumper.Begin(Log);
-            Cfg.DumpIconsOnce.Value = false;   // one-shot: flip back to false
-        }
+        HudAnchorScout.Begin(onFound: AttachIcon, log: Log);
 
         Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for HUD anchor.");
     }
@@ -76,9 +66,7 @@ public class Plugin : BaseUnityPlugin
             Catalog,
             initialActive:    () => Cfg.GetActive(),
             onActiveChanged:  active => Cfg.SetActive(active),
-            onLabelClick:     snap => clickHandler.Click(snap),
-            verbose:          () => Cfg.Verbose.Value,
-            log:              msg => Log.LogDebug(msg));
+            onLabelClick:     snap => clickHandler.Click(snap));
 
         _icon = StationStorageIcon.Create(
             hudCanvas,
@@ -95,7 +83,6 @@ public class Plugin : BaseUnityPlugin
         if (_window is null) return;
         try
         {
-            // Reader logs its own per-station summary; no extra log here.
             var snapshots = Reader.CaptureAll();
             _window.Toggle(snapshots);
         }

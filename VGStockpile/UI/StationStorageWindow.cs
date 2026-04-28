@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Behaviour.UI.Tooltip;
 using TMPro;
@@ -21,8 +20,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private Func<HashSet<MaterialCategory>> _initialActive   = null!;
     private Action<HashSet<MaterialCategory>> _onActiveChanged = null!;
     private Action<StationStorageSnapshot>  _onLabelClick    = null!;
-    private Func<bool>                      _verbose         = () => false;
-    private Action<string>                  _log             = _ => { };
 
     private readonly HashSet<MaterialCategory> _active = new();
     private readonly Dictionary<MaterialCategory, Image> _categoryButtons = new();
@@ -55,9 +52,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         MaterialCatalog catalog,
         Func<HashSet<MaterialCategory>> initialActive,
         Action<HashSet<MaterialCategory>> onActiveChanged,
-        Action<StationStorageSnapshot> onLabelClick,
-        Func<bool> verbose,
-        Action<string> log)
+        Action<StationStorageSnapshot> onLabelClick)
     {
         var go = new GameObject(
             "VGStockpile.Window",
@@ -72,8 +67,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
         w._initialActive    = initialActive;
         w._onActiveChanged  = onActiveChanged;
         w._onLabelClick     = onLabelClick;
-        w._verbose          = verbose;
-        w._log              = log;
         foreach (var c in initialActive()) w._active.Add(c);
         w.BuildLayout();
         w.Hide();
@@ -209,11 +202,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true;
             iconImg.raycastTarget  = false;
-            // Pass plugin log so the rect-match diagnostic fires for filter
-            // buttons too. Verbose mode controls whether the parent plugin
-            // even hits this path.
-            var sprite = SpriteLookup.FindByNameAndRect(sprName, rectX, rectY,
-                             VGStockpile.Plugin.Log)
+            var sprite = SpriteLookup.FindByNameAndRect(sprName, rectX, rectY)
                          ?? SpriteLookup.FindByName(sprName);
             if (sprite != null) { iconImg.sprite = sprite; iconImg.color = Color.white; }
             else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }
@@ -326,8 +315,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
                 cells: row.Cells,
                 snapshot: row.Snapshot);
         }
-
-        if (_verbose()) StartCoroutine(LogGeometryNextFrame());
     }
 
     private const float StationLabelWidth = 240f;
@@ -470,26 +457,5 @@ internal sealed class StationStorageWindow : MonoBehaviour
         t.fontStyle = style;
         t.alignment = TextAlignmentOptions.MidlineLeft;
         return go;
-    }
-
-    private IEnumerator LogGeometryNextFrame()
-    {
-        yield return null;
-
-        string Fmt(string n, RectTransform? rt) =>
-            rt == null ? $"{n}: <null>" : $"{n}: {rt.rect.width:F0}x{rt.rect.height:F0}";
-
-        var firstRow = _gridContent != null && _gridContent.childCount > 0
-            ? _gridContent.GetChild(0) as RectTransform
-            : null;
-        var viewport = _gridContent?.parent as RectTransform;
-
-        _log(
-            "geometry: " +
-            $"{Fmt("root", _root)}, " +
-            $"{Fmt("viewport", viewport)}, " +
-            $"{Fmt("content", _gridContent)}, " +
-            $"{Fmt("row0", firstRow)}, " +
-            $"rows={_gridContent?.childCount ?? 0}");
     }
 }

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using BepInEx.Logging;
 using TMPro;
 using UnityEngine;
@@ -14,32 +13,23 @@ namespace VGStockpile.UI;
 // fires (or after `MaxAttempts` is reached) the component disables itself.
 internal sealed class HudAnchorScout : MonoBehaviour
 {
-    // Strings we expect to see in the side-menu tab labels (matched
-    // case-insensitively against TMP_Text and UnityEngine.UI.Text).
     private static readonly string[] AnchorLabels = { "Cargo", "Armory", "Materials" };
 
-    // Poll roughly twice per second; tab labels usually appear within 1-2s
-    // of the main scene loading.
-    private const float  PollInterval = 0.5f;
-    private const int    MaxAttempts  = 60;   // 30s budget, then give up.
+    private const float PollInterval = 0.5f;
+    private const int   MaxAttempts  = 60;   // 30s budget, then give up.
 
     private System.Action<Canvas>? _onFound;
     private ManualLogSource?       _log;
-    private bool                   _verbose;
     private float                  _nextPollTime;
     private int                    _attempts;
 
-    public static HudAnchorScout Begin(
-        System.Action<Canvas> onFound,
-        ManualLogSource log,
-        bool verbose)
+    public static HudAnchorScout Begin(System.Action<Canvas> onFound, ManualLogSource log)
     {
         var go = new GameObject("VGStockpile.HudAnchorScout");
         Object.DontDestroyOnLoad(go);
         var s = go.AddComponent<HudAnchorScout>();
         s._onFound = onFound;
         s._log     = log;
-        s._verbose = verbose;
         s._nextPollTime = 0f;
         return s;
     }
@@ -63,21 +53,12 @@ internal sealed class HudAnchorScout : MonoBehaviour
         {
             _log?.LogWarning(
                 $"HudAnchorScout: gave up after {MaxAttempts} attempts (~{MaxAttempts * PollInterval:F0}s). " +
-                "Icon will not be attached this session. " +
-                "Inspect BepInEx log for canvas survey at verbose=true.");
-            DumpCanvasInventory();
+                "Icon will not be attached this session.");
             Destroy(gameObject);
-            return;
-        }
-
-        if (_verbose && (_attempts % 4 == 0))
-        {
-            _log?.LogDebug($"HudAnchorScout: still searching (attempt {_attempts}).");
-            DumpCanvasInventory();
         }
     }
 
-    private Canvas? FindAnchorCanvas()
+    private static Canvas? FindAnchorCanvas()
     {
         // Pass 1: TMP_Text labels.
         foreach (var t in Resources.FindObjectsOfTypeAll<TMP_Text>())
@@ -87,14 +68,7 @@ internal sealed class HudAnchorScout : MonoBehaviour
             if (!t.gameObject.activeInHierarchy) continue;
 
             var canvas = t.GetComponentInParent<Canvas>();
-            if (canvas != null)
-            {
-                if (_verbose)
-                    _log?.LogDebug(
-                        $"HudAnchorScout: TMP_Text '{t.text.Trim()}' on '{t.gameObject.name}' → " +
-                        $"canvas '{canvas.rootCanvas.name}'.");
-                return canvas.rootCanvas;
-            }
+            if (canvas != null) return canvas.rootCanvas;
         }
 
         // Pass 2: classic Text labels (some vanilla UI still uses these).
@@ -120,22 +94,5 @@ internal sealed class HudAnchorScout : MonoBehaviour
                 return true;
         }
         return false;
-    }
-
-    private void DumpCanvasInventory()
-    {
-        if (_log is null) return;
-        var canvases = Resources.FindObjectsOfTypeAll<Canvas>();
-        var seen = new HashSet<string>();
-        var summary = new List<string>();
-        foreach (var c in canvases)
-        {
-            if (c == null) continue;
-            var key = c.rootCanvas != null ? c.rootCanvas.name : c.name;
-            if (!seen.Add(key)) continue;
-            var active = c.rootCanvas != null && c.rootCanvas.gameObject.activeInHierarchy;
-            summary.Add($"{key}{(active ? "" : "(inactive)")}");
-        }
-        _log.LogDebug($"HudAnchorScout: canvases in scene ({summary.Count}): {string.Join(", ", summary)}");
     }
 }

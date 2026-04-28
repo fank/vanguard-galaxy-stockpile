@@ -3,6 +3,7 @@ using BepInEx.Logging;
 using UnityEngine;
 using VGStockpile.Config;
 using VGStockpile.Data;
+using VGStockpile.Diagnostics;
 using VGStockpile.Locate;
 using VGStockpile.UI;
 
@@ -49,6 +50,12 @@ public class Plugin : BaseUnityPlugin
             onFound:  AttachIcon,
             log:      Log,
             verbose:  Cfg.Verbose.Value);
+
+        if (Cfg.DumpIconsOnce.Value)
+        {
+            IconDumper.Begin(Log);
+            Cfg.DumpIconsOnce.Value = false;   // one-shot: flip back to false
+        }
 
         Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for HUD anchor.");
     }

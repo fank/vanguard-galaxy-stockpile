@@ -1,4 +1,5 @@
 using System;
+using BepInEx.Logging;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,11 +10,18 @@ internal sealed class StationStorageIcon : MonoBehaviour
 {
     private const string SpriteName = "SkillIcons1_103";
 
+    private Image           _iconImg     = null!;
+    private TextMeshProUGUI _fallbackTxt = null!;
+    private ManualLogSource _log         = null!;
+    private float           _nextRetry   = 0f;
+    private bool            _resolved    = false;
+
     public static StationStorageIcon Create(
         Canvas hudCanvas,
         Action onClick,
         float rightPadding,
-        float topPadding)
+        float topPadding,
+        ManualLogSource log)
     {
         var go = new GameObject("VGStockpile.Icon",
             typeof(RectTransform), typeof(Image), typeof(Button),
@@ -30,7 +38,6 @@ internal sealed class StationStorageIcon : MonoBehaviour
         var bg = go.GetComponent<Image>();
         bg.color = new Color(0.10f, 0.14f, 0.20f, 0.85f);
 
-        // Inner icon.
         var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
         var irt = (RectTransform)iconGo.transform;
         irt.SetParent(rt, worldPositionStays: false);
@@ -40,31 +47,57 @@ internal sealed class StationStorageIcon : MonoBehaviour
         var iconImg = iconGo.GetComponent<Image>();
         iconImg.preserveAspect = true;
         iconImg.raycastTarget  = false;
-        var sprite = SpriteLookup.FindByName(SpriteName);
-        if (sprite != null)
-        {
-            iconImg.sprite = sprite;
-            iconImg.color  = Color.white;
-        }
-        else
-        {
-            // Fallback: a small "STK" label so the button is at least visible.
-            iconImg.color = new Color(0f, 0f, 0f, 0f);
-            var fbGo = new GameObject("Fallback", typeof(RectTransform), typeof(TextMeshProUGUI));
-            var fbRt = (RectTransform)fbGo.transform;
-            fbRt.SetParent(rt, worldPositionStays: false);
-            fbRt.anchorMin = Vector2.zero; fbRt.anchorMax = Vector2.one;
-            fbRt.offsetMin = Vector2.zero; fbRt.offsetMax = Vector2.zero;
-            var lbl = fbGo.GetComponent<TextMeshProUGUI>();
-            lbl.text      = "STK";
-            lbl.alignment = TextAlignmentOptions.Center;
-            lbl.fontSize  = 14f;
-            lbl.fontStyle = FontStyles.Bold;
-        }
+
+        var fbGo = new GameObject("Fallback", typeof(RectTransform), typeof(TextMeshProUGUI));
+        var fbRt = (RectTransform)fbGo.transform;
+        fbRt.SetParent(rt, worldPositionStays: false);
+        fbRt.anchorMin = Vector2.zero; fbRt.anchorMax = Vector2.one;
+        fbRt.offsetMin = Vector2.zero; fbRt.offsetMax = Vector2.zero;
+        var lbl = fbGo.GetComponent<TextMeshProUGUI>();
+        lbl.text      = "STK";
+        lbl.alignment = TextAlignmentOptions.Center;
+        lbl.fontSize  = 14f;
+        lbl.fontStyle = FontStyles.Bold;
+        lbl.raycastTarget = false;
 
         var icon = go.GetComponent<StationStorageIcon>();
+        icon._iconImg     = iconImg;
+        icon._fallbackTxt = lbl;
+        icon._log         = log;
+        icon.TryResolveSprite(verboseLog: true);
+
         var button = go.GetComponent<Button>();
         button.onClick.AddListener(() => onClick());
         return icon;
+    }
+
+    private void Update()
+    {
+        if (_resolved) return;
+        if (Time.unscaledTime < _nextRetry) return;
+        _nextRetry = Time.unscaledTime + 1f;
+        TryResolveSprite(verboseLog: false);
+    }
+
+    private void TryResolveSprite(bool verboseLog)
+    {
+        var sprite = SpriteLookup.FindByName(SpriteName);
+        if (sprite is null)
+        {
+            if (verboseLog)
+                _log.LogWarning(
+                    $"StationStorageIcon: sprite '{SpriteName}' not yet loaded; " +
+                    "falling back to 'STK' label and retrying once per second.");
+            return;
+        }
+
+        _iconImg.sprite = sprite;
+        _iconImg.color  = Color.white;
+        _fallbackTxt.gameObject.SetActive(false);
+        _resolved = true;
+        _log.LogInfo(
+            $"StationStorageIcon: resolved sprite '{SpriteName}' " +
+            $"(texture '{sprite.texture?.name}', " +
+            $"native {(int)sprite.rect.width}x{(int)sprite.rect.height}).");
     }
 }

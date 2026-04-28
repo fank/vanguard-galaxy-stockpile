@@ -25,7 +25,9 @@ internal static class SpriteLookup
                 break;
             }
         }
-        _cache[name] = found;
+        // Only cache successful resolutions. A null at startup may resolve
+        // later once the asset bundle for this sprite has loaded.
+        if (found != null) _cache[name] = found;
         return found;
     }
 }

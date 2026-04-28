@@ -84,7 +84,8 @@ public class Plugin : BaseUnityPlugin
             hudCanvas,
             onClick: ToggleWindow,
             rightPadding: Cfg.IconRightPadding.Value,
-            topPadding:   Cfg.IconTopPadding.Value);
+            topPadding:   Cfg.IconTopPadding.Value,
+            log:          Log);
 
         Log.LogInfo($"VGStockpile icon attached to canvas '{hudCanvas.name}'.");
     }

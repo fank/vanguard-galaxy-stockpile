@@ -34,15 +34,19 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private static readonly Color BtnActive   = new(0.30f, 0.40f, 0.50f, 0.85f);
     private static readonly Color BtnInactive = new(0.20f, 0.20f, 0.20f, 0.80f);
 
-    // Visual descriptors for each filter button.
-    private static readonly (MaterialCategory Cat, string SpriteName, string Label)[] FilterDefs =
+    // Visual descriptors for each filter button. Sprite rect coordinates
+    // disambiguate runtime name collisions — Resources.FindObjectsOfTypeAll
+    // can return multiple Sprite instances sharing a name with different
+    // atlas rects (see SpriteLookup). Coords match the values dumped by
+    // IconDumper into BepInEx/cache/vgstockpile-icons/manifest.tsv.
+    private static readonly (MaterialCategory Cat, string Sprite, int RectX, int RectY, string Label)[] FilterDefs =
     {
-        (MaterialCategory.Ore,             "OreIcons_2",       "Ores"),
-        (MaterialCategory.RefinedCanister, "MaterialIcons_0",  "Refined Canisters"),
-        (MaterialCategory.RefinedGoods,    "CraftingIcons_0",  "Refined Products"),
-        (MaterialCategory.Crystal,         "CrystalIcons_5",   "Crystals"),
-        (MaterialCategory.TradeGoods,      "CraftingIcons_19", "Trade Goods"),
-        (MaterialCategory.Salvage,         "SalvageIcons_0",   "Salvage"),
+        (MaterialCategory.Ore,             "OreIcons_2",       192, 384, "Ores"),
+        (MaterialCategory.RefinedCanister, "MaterialIcons_0",    0,  96, "Refined Canisters"),
+        (MaterialCategory.RefinedGoods,    "CraftingIcons_0",    0, 384, "Refined Products"),
+        (MaterialCategory.Crystal,         "CrystalIcons_5",     0,   0, "Crystals"),
+        (MaterialCategory.TradeGoods,      "CraftingIcons_19", 384,  96, "Trade Goods"),
+        (MaterialCategory.Salvage,         "SalvageIcons_0",     0,  96, "Salvage"),
     };
 
     public static StationStorageWindow Create(
@@ -174,7 +178,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private void BuildCategoryButtons()
     {
-        foreach (var (cat, sprName, label) in FilterDefs)
+        foreach (var (cat, sprName, rectX, rectY, label) in FilterDefs)
         {
             var btnGo = new GameObject($"Filter_{cat}",
                 typeof(RectTransform), typeof(Image), typeof(Button),
@@ -205,7 +209,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true;
             iconImg.raycastTarget  = false;
-            var sprite = SpriteLookup.FindByName(sprName);
+            var sprite = SpriteLookup.FindByNameAndRect(sprName, rectX, rectY)
+                         ?? SpriteLookup.FindByName(sprName);
             if (sprite != null) { iconImg.sprite = sprite; iconImg.color = Color.white; }
             else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }
 

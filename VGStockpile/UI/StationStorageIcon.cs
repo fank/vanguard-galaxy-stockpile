@@ -8,7 +8,11 @@ namespace VGStockpile.UI;
 
 internal sealed class StationStorageIcon : MonoBehaviour
 {
-    private const string SpriteName = "SkillIcons1_103";
+    // SkillIcons1_103 at atlas rect (463, 199). Multiple Sprite instances
+    // share this name in the runtime registry; disambiguate by rect.
+    private const string SpriteName  = "SkillIcons1_103";
+    private const int    SpriteRectX = 463;
+    private const int    SpriteRectY = 199;
 
     private Image           _iconImg     = null!;
     private TextMeshProUGUI _fallbackTxt = null!;
@@ -81,7 +85,7 @@ internal sealed class StationStorageIcon : MonoBehaviour
 
     private void TryResolveSprite(bool verboseLog)
     {
-        var sprite = SpriteLookup.FindByName(SpriteName);
+        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY);
         if (sprite is null)
         {
             if (verboseLog)

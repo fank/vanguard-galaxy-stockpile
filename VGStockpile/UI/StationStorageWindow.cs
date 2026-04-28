@@ -313,26 +313,38 @@ internal sealed class StationStorageWindow : MonoBehaviour
         foreach (var row in grid.Rows)
         {
             BuildDataRow(
-                label: $"{row.Snapshot.SystemName} - {row.Snapshot.StationName}",
                 materialIds: grid.ColumnMaterialIds,
                 cells: row.Cells,
                 snapshot: row.Snapshot);
         }
     }
 
-    // Leftmost (sticky) area: faction icon + station label + jumps cell.
+    // Leftmost (sticky) area: system + faction icon + station + jumps.
     // Sum is shared by header and data rows so the material columns line up.
+    private const float SystemNameWidth  = 90f;
     private const float FactionIconWidth = 24f;
+    private const float StationNameWidth = 90f;
     private const float JumpsCellWidth   = 36f;
-    private const float StationLabelWidth = 240f - FactionIconWidth - JumpsCellWidth;
     private const float MaterialCellWidth = 56f;
 
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
     {
         var rowGo = NewRow(isHeader: true);
 
-        // Empty icon-width spacer so material columns align with data rows
-        // (which have a 24px faction icon cell here).
+        var systemHeaderGo = new GameObject("SystemHeader",
+            typeof(RectTransform), typeof(LayoutElement),
+            typeof(TextMeshProUGUI));
+        systemHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var she = systemHeaderGo.GetComponent<LayoutElement>();
+        she.preferredWidth = SystemNameWidth;
+        she.flexibleWidth  = 0f;
+        var systemHeaderText = systemHeaderGo.GetComponent<TextMeshProUGUI>();
+        systemHeaderText.text      = "System";
+        systemHeaderText.fontSize  = 12f;
+        systemHeaderText.fontStyle = FontStyles.Bold;
+        systemHeaderText.alignment = TextAlignmentOptions.Left;
+
+        // 24px spacer for the faction-icon cell that sits in data rows here.
         var spacer = new GameObject("HeaderIconSpacer",
             typeof(RectTransform), typeof(LayoutElement));
         spacer.transform.SetParent(rowGo.transform, worldPositionStays: false);
@@ -340,14 +352,14 @@ internal sealed class StationStorageWindow : MonoBehaviour
         sle.preferredWidth = FactionIconWidth;
         sle.flexibleWidth  = 0f;
 
-        var labelGo = new GameObject("StationHeader",
+        var stationHeaderGo = new GameObject("StationHeader",
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
-        labelGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
-        var lle = labelGo.GetComponent<LayoutElement>();
-        lle.preferredWidth = StationLabelWidth;
+        stationHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var lle = stationHeaderGo.GetComponent<LayoutElement>();
+        lle.preferredWidth = StationNameWidth;
         lle.flexibleWidth  = 0f;
-        var lblText = labelGo.GetComponent<TextMeshProUGUI>();
+        var lblText = stationHeaderGo.GetComponent<TextMeshProUGUI>();
         lblText.text      = "Station";
         lblText.fontSize  = 12f;
         lblText.fontStyle = FontStyles.Bold;
@@ -423,15 +435,26 @@ internal sealed class StationStorageWindow : MonoBehaviour
     }
 
     private void BuildDataRow(
-        string label,
         IReadOnlyList<string> materialIds,
         IReadOnlyList<string> cells,
         StationStorageSnapshot snapshot)
     {
         var rowGo = NewRow(isHeader: false);
 
-        // Faction icon cell (24px, leftmost). Falls back to a faint grey
-        // square if the faction has no icon resource.
+        // System name (leftmost).
+        var systemGo = new GameObject("System",
+            typeof(RectTransform), typeof(LayoutElement),
+            typeof(TextMeshProUGUI));
+        systemGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var sysLE = systemGo.GetComponent<LayoutElement>();
+        sysLE.preferredWidth = SystemNameWidth;
+        sysLE.flexibleWidth  = 0f;
+        var sysText = systemGo.GetComponent<TextMeshProUGUI>();
+        sysText.text      = snapshot.SystemName;
+        sysText.fontSize  = 12f;
+        sysText.alignment = TextAlignmentOptions.Left;
+
+        // Faction icon (between system and station).
         var iconGo = new GameObject("FactionIcon",
             typeof(RectTransform), typeof(LayoutElement), typeof(Image));
         iconGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
@@ -453,20 +476,21 @@ internal sealed class StationStorageWindow : MonoBehaviour
             factionImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.4f);
         }
 
-        var labelGo = new GameObject("Label",
+        // Station name (clickable for locate).
+        var stationGo = new GameObject("Station",
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
-        labelGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
-        var lle = labelGo.GetComponent<LayoutElement>();
-        lle.preferredWidth = StationLabelWidth;
-        lle.flexibleWidth  = 0f;
-        var lblText = labelGo.GetComponent<TextMeshProUGUI>();
-        lblText.text      = label;
-        lblText.fontSize  = 12f;
-        lblText.alignment = TextAlignmentOptions.Left;
-        lblText.color     = new Color(0.78f, 0.85f, 1f, 1f);
+        stationGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var stLE = stationGo.GetComponent<LayoutElement>();
+        stLE.preferredWidth = StationNameWidth;
+        stLE.flexibleWidth  = 0f;
+        var stText = stationGo.GetComponent<TextMeshProUGUI>();
+        stText.text      = snapshot.StationName;
+        stText.fontSize  = 12f;
+        stText.alignment = TextAlignmentOptions.Left;
+        stText.color     = new Color(0.78f, 0.85f, 1f, 1f);   // hint of clickability
 
-        var btn = labelGo.AddComponent<Button>();
+        var btn = stationGo.AddComponent<Button>();
         var snap = snapshot;
         btn.onClick.AddListener(() => _onLabelClick(snap));
 

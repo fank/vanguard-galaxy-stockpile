@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using Behaviour.Item;
+using Behaviour.UI.Tooltip;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,18 +16,20 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private Toggle        _hideOres    = null!;
     private GameObject    _emptyState  = null!;
 
-    private StorageGridBuilder         _builder         = null!;
-    private System.Func<bool>          _hideOresDefault = null!;
-    private System.Action<StationStorageSnapshot> _onLabelClick = null!;
+    private StorageGridBuilder            _builder         = null!;
+    private MaterialCatalog               _catalog         = null!;
+    private Func<bool>                    _hideOresDefault = null!;
+    private Action<StationStorageSnapshot> _onLabelClick   = null!;
 
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
-        System.Array.Empty<StationStorageSnapshot>();
+        Array.Empty<StationStorageSnapshot>();
 
     public static StationStorageWindow Create(
         Canvas hudCanvas,
         StorageGridBuilder builder,
-        System.Func<bool> hideOresDefault,
-        System.Action<StationStorageSnapshot> onLabelClick)
+        MaterialCatalog catalog,
+        Func<bool> hideOresDefault,
+        Action<StationStorageSnapshot> onLabelClick)
     {
         var go = new GameObject(
             "VGStockpile.Window",
@@ -35,6 +40,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         var w = go.GetComponent<StationStorageWindow>();
         w._root            = (RectTransform)go.transform;
         w._builder         = builder;
+        w._catalog         = catalog;
         w._hideOresDefault = hideOresDefault;
         w._onLabelClick    = onLabelClick;
         w.BuildLayout();
@@ -196,38 +202,73 @@ internal sealed class StationStorageWindow : MonoBehaviour
         }
         _emptyState.SetActive(false);
 
-        BuildRow(isHeader: true,
-            label: "Station",
-            cells: grid.ColumnDisplayNames,
-            snapshot: null);
+        BuildHeaderRow(grid.ColumnMaterialIds);
 
         foreach (var row in grid.Rows)
         {
-            BuildRow(isHeader: false,
-                label: $"{row.Snapshot.SystemName} — {row.Snapshot.StationName}",
+            BuildDataRow(
+                label: $"{row.Snapshot.SystemName} - {row.Snapshot.StationName}",
+                materialIds: grid.ColumnMaterialIds,
                 cells: row.Cells,
                 snapshot: row.Snapshot);
         }
     }
 
-    private void BuildRow(
-        bool isHeader, string label, IReadOnlyList<string> cells,
-        StationStorageSnapshot? snapshot)
+    private void BuildHeaderRow(IReadOnlyList<string> materialIds)
     {
-        var rowGo = new GameObject(isHeader ? "HeaderRow" : "Row",
-            typeof(RectTransform), typeof(HorizontalLayoutGroup),
-            typeof(Image), typeof(LayoutElement));
-        var rrt = (RectTransform)rowGo.transform;
-        rrt.SetParent(_gridContent, worldPositionStays: false);
-        rowGo.GetComponent<Image>().color = isHeader
-            ? new Color(0.18f, 0.20f, 0.25f, 0.95f)
-            : new Color(0.10f, 0.12f, 0.15f, 0.85f);
-        rowGo.GetComponent<LayoutElement>().minHeight = 24f;
-        var hlg = rowGo.GetComponent<HorizontalLayoutGroup>();
-        hlg.childForceExpandHeight = true;
-        hlg.spacing = 4f;
-        hlg.padding = new RectOffset(4, 4, 2, 2);
+        var rowGo = NewRow(isHeader: true);
 
+        // Sticky left "Station" cell.
+        var labelGo = new GameObject("StationHeader",
+            typeof(RectTransform), typeof(LayoutElement),
+            typeof(TextMeshProUGUI));
+        labelGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        labelGo.GetComponent<LayoutElement>().preferredWidth = 240f;
+        labelGo.GetComponent<LayoutElement>().flexibleWidth  = 0f;
+        var lblText = labelGo.GetComponent<TextMeshProUGUI>();
+        lblText.text      = "Station";
+        lblText.fontSize  = 12f;
+        lblText.fontStyle = FontStyles.Bold;
+        lblText.alignment = TextAlignmentOptions.Left;
+
+        // One icon cell per material column.
+        foreach (var id in materialIds)
+        {
+            var cellGo = new GameObject("MaterialIcon",
+                typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+            cellGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+            var le = cellGo.GetComponent<LayoutElement>();
+            le.preferredWidth = 28f;
+            le.preferredHeight = 28f;
+            le.flexibleWidth  = 0f;
+
+            var img = cellGo.GetComponent<Image>();
+            img.preserveAspect = true;
+            var sprite = _catalog.Icon(id);
+            if (sprite != null)
+            {
+                img.sprite = sprite;
+                img.color  = Color.white;
+            }
+            else
+            {
+                // Fallback: tiny "?" if vanilla has no icon for this id.
+                img.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
+            }
+
+            AttachItemTooltip(cellGo, id);
+        }
+    }
+
+    private void BuildDataRow(
+        string label,
+        IReadOnlyList<string> materialIds,
+        IReadOnlyList<string> cells,
+        StationStorageSnapshot snapshot)
+    {
+        var rowGo = NewRow(isHeader: false);
+
+        // Sticky station label cell (clickable for locate).
         var labelGo = new GameObject("Label",
             typeof(RectTransform), typeof(LayoutElement),
             typeof(TextMeshProUGUI));
@@ -236,34 +277,73 @@ internal sealed class StationStorageWindow : MonoBehaviour
         lle.preferredWidth = 240f;
         lle.flexibleWidth  = 0f;
         var lblText = labelGo.GetComponent<TextMeshProUGUI>();
-        lblText.text = label;
-        lblText.fontSize = 12f;
-        lblText.fontStyle = isHeader ? FontStyles.Bold : FontStyles.Normal;
+        lblText.text      = label;
+        lblText.fontSize  = 12f;
         lblText.alignment = TextAlignmentOptions.Left;
+        lblText.color     = new Color(0.78f, 0.85f, 1f, 1f); // hint of clickability
 
-        if (!isHeader && snapshot is not null)
-        {
-            var btn = labelGo.AddComponent<Button>();
-            var snap = snapshot;
-            btn.onClick.AddListener(() => _onLabelClick(snap));
-            lblText.color = new Color(0.78f, 0.85f, 1f, 1f);
-        }
+        var btn = labelGo.AddComponent<Button>();
+        var snap = snapshot;
+        btn.onClick.AddListener(() => _onLabelClick(snap));
 
-        foreach (var cell in cells)
+        // One quantity cell per material column. Cells get the same vanilla
+        // item tooltip on hover so the player knows which material the
+        // quantity belongs to.
+        for (int i = 0; i < materialIds.Count; i++)
         {
+            var id   = materialIds[i];
+            var qty  = cells[i];
+
             var cellGo = new GameObject("Cell",
                 typeof(RectTransform), typeof(LayoutElement),
                 typeof(TextMeshProUGUI));
             cellGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
             var ce = cellGo.GetComponent<LayoutElement>();
-            ce.preferredWidth = 80f;
+            ce.preferredWidth = 60f;
             ce.flexibleWidth  = 0f;
             var ctxt = cellGo.GetComponent<TextMeshProUGUI>();
-            ctxt.text = cell;
-            ctxt.fontSize = 12f;
-            ctxt.fontStyle = isHeader ? FontStyles.Bold : FontStyles.Normal;
+            ctxt.text      = qty;
+            ctxt.fontSize  = 12f;
             ctxt.alignment = TextAlignmentOptions.MidlineRight;
+
+            // Only attach tooltip if the cell has content; otherwise hovering
+            // empty space pops a tooltip, which is noisy.
+            if (!string.IsNullOrEmpty(qty))
+                AttachItemTooltip(cellGo, id);
         }
+    }
+
+    private GameObject NewRow(bool isHeader)
+    {
+        var rowGo = new GameObject(isHeader ? "HeaderRow" : "Row",
+            typeof(RectTransform), typeof(HorizontalLayoutGroup),
+            typeof(Image), typeof(LayoutElement));
+        rowGo.transform.SetParent(_gridContent, worldPositionStays: false);
+        rowGo.GetComponent<Image>().color = isHeader
+            ? new Color(0.18f, 0.20f, 0.25f, 0.95f)
+            : new Color(0.10f, 0.12f, 0.15f, 0.85f);
+        rowGo.GetComponent<LayoutElement>().minHeight = isHeader ? 32f : 24f;
+        var hlg = rowGo.GetComponent<HorizontalLayoutGroup>();
+        hlg.childForceExpandHeight = true;
+        hlg.spacing = 4f;
+        hlg.padding = new RectOffset(4, 4, 2, 2);
+        return rowGo;
+    }
+
+    private void AttachItemTooltip(GameObject go, string materialTypeId)
+    {
+        var type = _catalog.GetItemType(materialTypeId);
+        if (type is null) return;
+
+        // ItemTooltipSource is the component vanilla item slots use. It needs
+        // a Graphic to receive pointer events — every cell we attach to
+        // already has either a TextMeshProUGUI or an Image.
+        var src = go.AddComponent<ItemTooltipSource>();
+        src.SetItem(
+            item:        type,
+            count:       0,
+            allowCompare: false,
+            context:     ItemTooltipContext.InInventory);
     }
 
     private static GameObject MakeLabel(

@@ -66,6 +66,7 @@ public class Plugin : BaseUnityPlugin
         _window = StationStorageWindow.Create(
             hudCanvas,
             Builder,
+            Catalog,
             hideOresDefault: () => Cfg.HideOresByDefault.Value,
             onLabelClick:    snap => clickHandler.Click(snap));
 

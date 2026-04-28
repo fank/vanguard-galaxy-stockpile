@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+*.suo
+dist/
+# lib/Assembly-CSharp.dll is a symlink, not a real artifact — never commit it.
+**/lib/Assembly-CSharp.dll

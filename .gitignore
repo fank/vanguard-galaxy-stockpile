@@ -5,5 +5,6 @@ obj/
 .idea/
 *.suo
 dist/
-# lib/Assembly-CSharp.dll is a symlink, not a real artifact — never commit it.
-**/lib/Assembly-CSharp.dll
+# Assembly-CSharp.dll is a publicized stub committed at VGStockpile/lib/ so
+# the GitHub Actions release workflow can compile against it without the
+# proprietary game runtime.

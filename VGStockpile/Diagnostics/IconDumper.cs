@@ -50,7 +50,7 @@ internal sealed class IconDumper : MonoBehaviour
 
         var seen = new HashSet<string>();
         var manifest = new StringBuilder();
-        manifest.AppendLine("filename\tsprite_name\ttexture_name\tnative_w\tnative_h");
+        manifest.AppendLine("filename\tsprite_name\ttexture_name\tnative_w\tnative_h\trect_x\trect_y");
 
         var sprites = Resources.FindObjectsOfTypeAll<Sprite>();
         int written = 0, skipped = 0;
@@ -77,7 +77,8 @@ internal sealed class IconDumper : MonoBehaviour
                     File.WriteAllBytes(path, bytes);
                     manifest.AppendLine(
                         $"{unique}.png\t{sp.name}\t{sp.texture.name}\t" +
-                        $"{(int)sp.rect.width}\t{(int)sp.rect.height}");
+                        $"{(int)sp.rect.width}\t{(int)sp.rect.height}\t" +
+                        $"{(int)sp.rect.x}\t{(int)sp.rect.y}");
                     written++;
                 }
                 else

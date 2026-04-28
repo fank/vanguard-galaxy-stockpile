@@ -30,4 +30,29 @@ internal static class SpriteLookup
         if (found != null) _cache[name] = found;
         return found;
     }
+
+    // Disambiguating lookup: when multiple sprites share a name, pick the one
+    // whose atlas rect matches (rect_x, rect_y) from the IconDumper manifest.
+    // Game asset bundles can produce several Sprite instances with identical
+    // names but different rects, and Resources.FindObjectsOfTypeAll iteration
+    // order isn't stable — so plain name-lookup picks an arbitrary one.
+    public static Sprite? FindByNameAndRect(string name, int rectX, int rectY)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        var key = $"{name}@{rectX},{rectY}";
+        if (_cache.TryGetValue(key, out var hit)) return hit;
+
+        Sprite? found = null;
+        foreach (var s in Resources.FindObjectsOfTypeAll<Sprite>())
+        {
+            if (s == null || s.name != name) continue;
+            if ((int)s.rect.x == rectX && (int)s.rect.y == rectY)
+            {
+                found = s;
+                break;
+            }
+        }
+        if (found != null) _cache[key] = found;
+        return found;
+    }
 }

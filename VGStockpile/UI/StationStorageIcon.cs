@@ -85,7 +85,7 @@ internal sealed class StationStorageIcon : MonoBehaviour
 
     private void TryResolveSprite(bool verboseLog)
     {
-        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY);
+        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY, _log);
         if (sprite is null)
         {
             if (verboseLog)

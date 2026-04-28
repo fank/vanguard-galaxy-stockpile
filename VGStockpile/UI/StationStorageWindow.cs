@@ -209,7 +209,11 @@ internal sealed class StationStorageWindow : MonoBehaviour
             var iconImg = iconGo.GetComponent<Image>();
             iconImg.preserveAspect = true;
             iconImg.raycastTarget  = false;
-            var sprite = SpriteLookup.FindByNameAndRect(sprName, rectX, rectY)
+            // Pass plugin log so the rect-match diagnostic fires for filter
+            // buttons too. Verbose mode controls whether the parent plugin
+            // even hits this path.
+            var sprite = SpriteLookup.FindByNameAndRect(sprName, rectX, rectY,
+                             VGStockpile.Plugin.Log)
                          ?? SpriteLookup.FindByName(sprName);
             if (sprite != null) { iconImg.sprite = sprite; iconImg.color = Color.white; }
             else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using BepInEx.Logging;
 using UnityEngine;
 
 namespace VGStockpile.UI;
@@ -33,25 +34,53 @@ internal static class SpriteLookup
 
     // Disambiguating lookup: when multiple sprites share a name, pick the one
     // whose atlas rect matches (rect_x, rect_y) from the IconDumper manifest.
-    // Game asset bundles can produce several Sprite instances with identical
-    // names but different rects, and Resources.FindObjectsOfTypeAll iteration
-    // order isn't stable — so plain name-lookup picks an arbitrary one.
     public static Sprite? FindByNameAndRect(string name, int rectX, int rectY)
+    {
+        return FindByNameAndRect(name, rectX, rectY, log: null);
+    }
+
+    public static Sprite? FindByNameAndRect(
+        string name, int rectX, int rectY,
+        BepInEx.Logging.ManualLogSource? log)
     {
         if (string.IsNullOrEmpty(name)) return null;
         var key = $"{name}@{rectX},{rectY}";
         if (_cache.TryGetValue(key, out var hit)) return hit;
 
         Sprite? found = null;
+        var candidates = new List<Sprite>();
         foreach (var s in Resources.FindObjectsOfTypeAll<Sprite>())
         {
             if (s == null || s.name != name) continue;
-            if ((int)s.rect.x == rectX && (int)s.rect.y == rectY)
+            candidates.Add(s);
+            // Tolerate fractional rounding by rounding instead of casting.
+            if (Mathf.RoundToInt(s.rect.x) == rectX &&
+                Mathf.RoundToInt(s.rect.y) == rectY)
             {
                 found = s;
-                break;
+                // Keep iterating for diagnostics — but we'd return this one.
             }
         }
+
+        if (log != null)
+        {
+            if (candidates.Count == 0)
+                log.LogWarning($"SpriteLookup: no Sprite named '{name}' loaded.");
+            else
+            {
+                var summary = string.Join(", ", candidates.ConvertAll(c =>
+                    $"({c.rect.x:F1},{c.rect.y:F1} {c.rect.width:F0}x{c.rect.height:F0} tex={c.texture?.name})"));
+                if (found != null)
+                    log.LogInfo(
+                        $"SpriteLookup '{name}@{rectX},{rectY}': matched 1 of " +
+                        $"{candidates.Count} candidate(s). Candidates: {summary}");
+                else
+                    log.LogWarning(
+                        $"SpriteLookup '{name}@{rectX},{rectY}': no rect match among " +
+                        $"{candidates.Count} candidate(s). Candidates: {summary}");
+            }
+        }
+
         if (found != null) _cache[key] = found;
         return found;
     }

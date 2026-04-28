@@ -108,7 +108,10 @@ internal sealed class IconDumper : MonoBehaviour
         int w = Mathf.Max(1, (int)rect.width);
         int h = Mathf.Max(1, (int)rect.height);
 
-        // Blit sprite region into a readable RenderTexture.
+        // Blit src into a same-sized RenderTexture so we have a readable
+        // copy. ReadPixels uses the same coordinate system as Sprite.rect
+        // (origin bottom-left of the texture), so pass the rect through
+        // without any Y inversion.
         var prev = RenderTexture.active;
         var rt = RenderTexture.GetTemporary(src.width, src.height, 0,
             RenderTextureFormat.ARGB32);
@@ -118,10 +121,7 @@ internal sealed class IconDumper : MonoBehaviour
             RenderTexture.active = rt;
 
             var copy = new Texture2D(w, h, TextureFormat.ARGB32, false);
-            // Y is flipped because RenderTexture origin is bottom-left.
-            copy.ReadPixels(
-                new Rect(rect.x, src.height - rect.y - h, w, h),
-                0, 0);
+            copy.ReadPixels(new Rect(rect.x, rect.y, w, h), 0, 0);
             copy.Apply();
             bytes = copy.EncodeToPNG();
             Destroy(copy);

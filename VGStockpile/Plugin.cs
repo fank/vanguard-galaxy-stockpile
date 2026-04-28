@@ -1,9 +1,11 @@
 using BepInEx;
 using BepInEx.Logging;
+using HarmonyLib;
 using UnityEngine;
 using VGStockpile.Config;
 using VGStockpile.Data;
 using VGStockpile.Locate;
+using VGStockpile.Patches;
 using VGStockpile.UI;
 
 namespace VGStockpile;
@@ -27,6 +29,7 @@ public class Plugin : BaseUnityPlugin
 
     private StationStorageIcon?      _icon;
     private StationStorageWindow?    _window;
+    private Harmony                  _harmony = null!;
 
     public bool IconAttached => _icon != null;
 
@@ -41,14 +44,18 @@ public class Plugin : BaseUnityPlugin
         Locator = new StationLocator(Log);
         Builder = new StorageGridBuilder(Catalog);
 
-        // Vanilla's HUD canvas + side menu come up after our plugin's Awake
-        // and at unpredictable times depending on save load. A polling scout
-        // searches for the side-menu tab labels ("Cargo" / "Armory" /
-        // "Materials") and gives us the right anchor canvas once they exist.
-        HudAnchorScout.Begin(onFound: AttachIcon, log: Log);
+        // Vanilla's HUD canvas + side menu come up at unpredictable times
+        // (depending on how long the user lingers in the main menu before
+        // loading a save). Patch SidePanel.Start as the trigger — it runs
+        // exactly once per gameplay-scene load, after the side menu's
+        // canvas hierarchy is built, with no race or timeout.
+        _harmony = new Harmony(PluginGuid);
+        _harmony.PatchAll(typeof(SidePanelReadyPatch));
 
-        Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for HUD anchor.");
+        Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel.");
     }
+
+    private void OnDestroy() => _harmony?.UnpatchSelf();
 
     internal void AttachIcon(Canvas hudCanvas)
     {

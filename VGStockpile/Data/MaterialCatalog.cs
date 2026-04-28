@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Behaviour.Item;
+using Behaviour.UI;
+using Source.Galaxy;
 using Source.Item;
 using UnityEngine;
 
@@ -71,19 +73,37 @@ internal sealed class MaterialCatalog : IMaterialCatalog
 
     public InventoryItemType? GetItemType(string materialTypeId) => LookupType(materialTypeId);
 
-    // Faction icons live at Resources/Sprites/FactionIcons/{identifier}Icon —
-    // mirrors what Faction.GetIcon() does internally. Cached per id so the
-    // Resources.Load call only fires once per faction.
+    // Faction icons come from FactionIconSet — a MonoBehaviour the game
+    // instantiates per faction, registered in a static Dictionary by
+    // GameObject name (== faction identifier). This is what the galaxy
+    // map's FactionIconsHandler uses; Faction.GetIcon's Resources.Load
+    // path doesn't actually resolve at runtime.
     private readonly Dictionary<string, Sprite?> _factionIconCache = new();
+    private Dictionary<string, Faction>? _factionLookup;
 
     public Sprite? FactionIcon(string factionId)
     {
         if (string.IsNullOrEmpty(factionId)) return null;
         if (_factionIconCache.TryGetValue(factionId, out var cached)) return cached;
 
-        var sprite = Resources.Load<Sprite>($"Sprites/FactionIcons/{factionId}Icon");
+        var faction = LookupFaction(factionId);
+        var sprite  = faction is null ? null : FactionIconSet.Get(faction)?.mapIcon;
         _factionIconCache[factionId] = sprite;
         return sprite;
+    }
+
+    private Faction? LookupFaction(string id)
+    {
+        if (_factionLookup is null)
+        {
+            _factionLookup = new Dictionary<string, Faction>();
+            foreach (var f in Faction.all)
+            {
+                if (f is null || string.IsNullOrEmpty(f.identifier)) continue;
+                _factionLookup[f.identifier] = f;
+            }
+        }
+        return _factionLookup.TryGetValue(id, out var v) ? v : null;
     }
 
     private InventoryItemType? LookupType(string id)

@@ -20,6 +20,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private MaterialCatalog               _catalog         = null!;
     private Func<bool>                    _hideOresDefault = null!;
     private Action<StationStorageSnapshot> _onLabelClick   = null!;
+    private Func<bool>                    _verbose         = () => false;
+    private Action<string>                _log             = _ => { };
 
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
         Array.Empty<StationStorageSnapshot>();
@@ -29,7 +31,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
         StorageGridBuilder builder,
         MaterialCatalog catalog,
         Func<bool> hideOresDefault,
-        Action<StationStorageSnapshot> onLabelClick)
+        Action<StationStorageSnapshot> onLabelClick,
+        Func<bool> verbose,
+        Action<string> log)
     {
         var go = new GameObject(
             "VGStockpile.Window",
@@ -43,6 +47,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
         w._catalog         = catalog;
         w._hideOresDefault = hideOresDefault;
         w._onLabelClick    = onLabelClick;
+        w._verbose         = verbose;
+        w._log             = log;
         w.BuildLayout();
         w.Hide();
         return w;
@@ -140,6 +146,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private void BuildGrid()
     {
+        // Outer ScrollRect — fills the panel below the header.
         var scroll = new GameObject("Scroll",
             typeof(RectTransform), typeof(ScrollRect), typeof(Image));
         var srt = (RectTransform)scroll.transform;
@@ -150,22 +157,40 @@ internal sealed class StationStorageWindow : MonoBehaviour
         srt.offsetMax = new Vector2(-8f, -40f);
         scroll.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.30f);
 
+        // Viewport — required by ScrollRect to clip overflowing content.
+        // RectMask2D does the actual clipping; the Image is the mask graphic.
+        var viewport = new GameObject("Viewport",
+            typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+        var vrt = (RectTransform)viewport.transform;
+        vrt.SetParent(scroll.transform, worldPositionStays: false);
+        vrt.anchorMin = new Vector2(0f, 0f);
+        vrt.anchorMax = new Vector2(1f, 1f);
+        vrt.offsetMin = Vector2.zero;
+        vrt.offsetMax = Vector2.zero;
+        viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f); // transparent
+
+        // Content — sizes itself to its rows on both axes so the ScrollRect
+        // can scroll horizontally when the row width exceeds the viewport.
         var content = new GameObject("Content",
             typeof(RectTransform), typeof(VerticalLayoutGroup),
             typeof(ContentSizeFitter));
         var crt = (RectTransform)content.transform;
-        crt.SetParent(scroll.transform, worldPositionStays: false);
+        crt.SetParent(viewport.transform, worldPositionStays: false);
         crt.anchorMin = new Vector2(0f, 1f);
-        crt.anchorMax = new Vector2(1f, 1f);
+        crt.anchorMax = new Vector2(0f, 1f);
         crt.pivot     = new Vector2(0f, 1f);
+        crt.anchoredPosition = Vector2.zero;
 
         var fitter = content.GetComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit   = ContentSizeFitter.FitMode.PreferredSize;
         var vlg = content.GetComponent<VerticalLayoutGroup>();
         vlg.childForceExpandHeight = false;
+        vlg.childForceExpandWidth  = false;
         vlg.spacing = 2f;
 
         var sr = scroll.GetComponent<ScrollRect>();
+        sr.viewport   = vrt;
         sr.content    = crt;
         sr.horizontal = true;
         sr.vertical   = true;
@@ -212,6 +237,37 @@ internal sealed class StationStorageWindow : MonoBehaviour
                 cells: row.Cells,
                 snapshot: row.Snapshot);
         }
+
+        if (_verbose()) StartCoroutine(LogGeometryNextFrame());
+    }
+
+    private System.Collections.IEnumerator LogGeometryNextFrame()
+    {
+        // Wait one frame so Unity's layout system propagates sizes through
+        // ContentSizeFitter / HorizontalLayoutGroup before we sample.
+        yield return null;
+
+        string Fmt(string name, RectTransform? rt)
+        {
+            if (rt == null) return $"{name}: <null>";
+            var r = rt.rect;
+            return $"{name}: {r.width:F0}x{r.height:F0}";
+        }
+
+        var rootRT = _root;
+        var contentRT = _gridContent;
+        var firstRow = contentRT != null && contentRT.childCount > 0
+            ? contentRT.GetChild(0) as RectTransform
+            : null;
+        var viewport = contentRT?.parent as RectTransform;
+
+        _log(
+            "geometry: " +
+            $"{Fmt("root", rootRT)}, " +
+            $"{Fmt("viewport", viewport)}, " +
+            $"{Fmt("content", contentRT)}, " +
+            $"{Fmt("row0", firstRow)}, " +
+            $"rows={contentRT?.childCount ?? 0}");
     }
 
     // Shared widths so header icon cells and data quantity cells line up.

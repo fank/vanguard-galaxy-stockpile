@@ -68,7 +68,9 @@ public class Plugin : BaseUnityPlugin
             Builder,
             Catalog,
             hideOresDefault: () => Cfg.HideOresByDefault.Value,
-            onLabelClick:    snap => clickHandler.Click(snap));
+            onLabelClick:    snap => clickHandler.Click(snap),
+            verbose:         () => Cfg.Verbose.Value,
+            log:             msg => Log.LogDebug(msg));
 
         _icon = StationStorageIcon.Create(
             hudCanvas,

@@ -18,29 +18,34 @@ public class StorageGridBuilderTests
 
     private static FakeMaterialCatalog DefaultCatalog() =>
         new FakeMaterialCatalog()
-            .Add("ti", "Titanium",  MaterialCategory.Refined)
-            .Add("ox", "Oxide",     MaterialCategory.Refined)
-            .Add("si", "Silicon",   MaterialCategory.Refined)
-            .Add("iron-ore", "Iron Ore",      MaterialCategory.Ore)
-            .Add("ruby",     "Ruby",          MaterialCategory.Crystal)
-            .Add("crate",    "Crate",         MaterialCategory.TradeGoods);
+            .Add("ti", "Titanium", MaterialCategory.RefinedGoods)
+            .Add("ox", "Oxide",    MaterialCategory.RefinedGoods)
+            .Add("si", "Silicon",  MaterialCategory.RefinedGoods)
+            .Add("canister-of-oxide", "Canister of Refined Oxide", MaterialCategory.RefinedCanister)
+            .Add("iron-ore", "Iron Ore", MaterialCategory.Ore)
+            .Add("ruby",     "Ruby",     MaterialCategory.Crystal)
+            .Add("crate",    "Crate",    MaterialCategory.TradeGoods);
 
     private static ISet<MaterialCategory> All() =>
         new HashSet<MaterialCategory>
         {
             MaterialCategory.Ore,
-            MaterialCategory.Refined,
+            MaterialCategory.RefinedCanister,
+            MaterialCategory.RefinedGoods,
             MaterialCategory.Crystal,
             MaterialCategory.TradeGoods,
+            MaterialCategory.Salvage,
             MaterialCategory.Other,
         };
 
     private static ISet<MaterialCategory> NoOres() =>
         new HashSet<MaterialCategory>
         {
-            MaterialCategory.Refined,
+            MaterialCategory.RefinedCanister,
+            MaterialCategory.RefinedGoods,
             MaterialCategory.Crystal,
             MaterialCategory.TradeGoods,
+            MaterialCategory.Salvage,
             MaterialCategory.Other,
         };
 

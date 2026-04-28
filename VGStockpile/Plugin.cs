@@ -38,7 +38,7 @@ public class Plugin : BaseUnityPlugin
 
         Cfg     = new StockpileConfig(Config);
         Catalog = new MaterialCatalog();
-        Reader  = new StationStorageReader(Log, () => Cfg.Verbose.Value);
+        Reader  = new StationStorageReader(Log, () => Cfg.Verbose.Value, Catalog);
         Locator = new StationLocator(Log);
         Builder = new StorageGridBuilder(Catalog);
 

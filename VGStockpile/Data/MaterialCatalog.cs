@@ -27,13 +27,24 @@ internal sealed class MaterialCatalog : IMaterialCatalog
         return type.itemCategory switch
         {
             ItemCategory.Ore             => MaterialCategory.Ore,
-            ItemCategory.RefinedProduct  => MaterialCategory.Refined,
+            ItemCategory.RefinedProduct  => IsCanister(type)
+                                                ? MaterialCategory.RefinedCanister
+                                                : MaterialCategory.RefinedGoods,
             ItemCategory.Crystal         => MaterialCategory.Crystal,
             ItemCategory.TradeGoods      => MaterialCategory.TradeGoods,
             ItemCategory.Salvage         => MaterialCategory.Salvage,
             ItemCategory.Junk            => MaterialCategory.Other,
             _                            => MaterialCategory.Unknown,
         };
+    }
+
+    private static bool IsCanister(InventoryItemType type)
+    {
+        // Canister-style refined products are extracted/carryable items like
+        // "Canister of Refined Oxide". Match on identifier substring (more
+        // stable than localized displayName).
+        var id = type.identifier ?? "";
+        return id.IndexOf("canister", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     public Sprite? Icon(string materialTypeId) => LookupType(materialTypeId)?.icon;

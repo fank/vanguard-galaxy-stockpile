@@ -11,11 +11,13 @@ internal sealed class StationStorageReader
 {
     private readonly ManualLogSource _log;
     private readonly System.Func<bool> _verbose;
+    private readonly IMaterialCatalog? _catalogForLog;
 
-    public StationStorageReader(ManualLogSource log, System.Func<bool> verbose)
+    public StationStorageReader(ManualLogSource log, System.Func<bool> verbose, IMaterialCatalog? catalogForLog = null)
     {
         _log = log;
         _verbose = verbose;
+        _catalogForLog = catalogForLog;
     }
 
     public IReadOnlyList<StationStorageSnapshot> CaptureAll()
@@ -51,8 +53,13 @@ internal sealed class StationStorageReader
 
             if (verbose)
             {
-                var dump = string.Join(", ",
-                    items.Select(kv => $"{kv.Key}={kv.Value}"));
+                var dump = string.Join(", ", items.Select(kv =>
+                {
+                    var cat = _catalogForLog?.Category(kv.Key);
+                    return cat is null
+                        ? $"{kv.Key}={kv.Value}"
+                        : $"{kv.Key}[{cat}]={kv.Value}";
+                }));
                 _log.LogDebug(
                     $"reader: '{st.name}' (sys '{st.system?.name}', fac '{st.faction?.identifier}') -> {dump}");
             }

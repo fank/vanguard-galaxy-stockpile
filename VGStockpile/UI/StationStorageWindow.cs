@@ -37,11 +37,12 @@ internal sealed class StationStorageWindow : MonoBehaviour
     // Visual descriptors for each filter button.
     private static readonly (MaterialCategory Cat, string SpriteName, string Label)[] FilterDefs =
     {
-        (MaterialCategory.Ore,        "OreIcons_2",       "Ores"),
-        (MaterialCategory.Refined,    "MaterialIcons_0",  "Refined Canisters"),
-        (MaterialCategory.Crystal,    "CrystalIcons_5",   "Crystals"),
-        (MaterialCategory.TradeGoods, "CraftingIcons_0",  "Trade Goods"),
-        (MaterialCategory.Salvage,    "SalvageIcons_0",   "Salvage"),
+        (MaterialCategory.Ore,             "OreIcons_2",       "Ores"),
+        (MaterialCategory.RefinedCanister, "MaterialIcons_0",  "Refined Canisters"),
+        (MaterialCategory.RefinedGoods,    "CraftingIcons_0",  "Refined Products"),
+        (MaterialCategory.Crystal,         "CrystalIcons_5",   "Crystals"),
+        (MaterialCategory.TradeGoods,      "CraftingIcons_19", "Trade Goods"),
+        (MaterialCategory.Salvage,         "SalvageIcons_0",   "Salvage"),
     };
 
     public static StationStorageWindow Create(
@@ -140,7 +141,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
         strt.anchorMin = new Vector2(1f, 0.5f);
         strt.anchorMax = new Vector2(1f, 0.5f);
         strt.pivot     = new Vector2(1f, 0.5f);
-        strt.sizeDelta = new Vector2(220f, 32f);
+        // Width grows with the number of buttons (6 × 30 + 5 × 6 spacing = 210).
+        strt.sizeDelta = new Vector2(260f, 32f);
         strt.anchoredPosition = new Vector2(-64f, 0f);
         var hlg = stripGo.GetComponent<HorizontalLayoutGroup>();
         hlg.spacing = 6f;

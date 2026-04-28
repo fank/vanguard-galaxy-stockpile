@@ -14,11 +14,11 @@ internal sealed class StockpileConfig
     public ConfigEntry<bool>   Verbose             { get; }
     public ConfigEntry<bool>   DumpIconsOnce       { get; }
 
-    // Categories visible by default: everything except Ores. Salvage included
-    // since users explicitly asked to surface it.
+    // Categories visible by default: everything except Ores.
     private static readonly MaterialCategory[] DefaultActive =
     {
-        MaterialCategory.Refined,
+        MaterialCategory.RefinedCanister,
+        MaterialCategory.RefinedGoods,
         MaterialCategory.Crystal,
         MaterialCategory.TradeGoods,
         MaterialCategory.Salvage,
@@ -32,7 +32,8 @@ internal sealed class StockpileConfig
             string.Join(",", DefaultActive.Select(c => c.ToString())),
             "Comma-separated list of MaterialCategory names visible in the grid. " +
             "Toggling a filter button updates this. Valid values: " +
-            "Ore, Refined, Crystal, TradeGoods, Salvage, Other.");
+            "Ore, RefinedCanister, RefinedGoods, Crystal, TradeGoods, Salvage, Other. " +
+            "(Legacy 'Refined' is auto-migrated to RefinedCanister + RefinedGoods.)");
         IconRightPadding = cfg.Bind("UI", "IconRightPadding", 24f,
             "Pixels of padding from the right edge of the screen for the HUD icon.");
         IconTopPadding = cfg.Bind("UI", "IconTopPadding", 12f,
@@ -55,6 +56,13 @@ internal sealed class StockpileConfig
         {
             var trimmed = part.Trim();
             if (trimmed.Length == 0) continue;
+            // Migration: the old "Refined" bucket maps to both new buckets.
+            if (string.Equals(trimmed, "Refined", System.StringComparison.OrdinalIgnoreCase))
+            {
+                set.Add(MaterialCategory.RefinedCanister);
+                set.Add(MaterialCategory.RefinedGoods);
+                continue;
+            }
             if (System.Enum.TryParse<MaterialCategory>(trimmed, ignoreCase: true, out var cat))
                 set.Add(cat);
         }

@@ -16,8 +16,8 @@ public class FakeMaterialCatalogTests
     [Fact]
     public void Known_Id_Returns_Configured_Name_And_Category()
     {
-        var c = new FakeMaterialCatalog().Add("ti", "Titanium", MaterialCategory.Refined);
+        var c = new FakeMaterialCatalog().Add("ti", "Titanium", MaterialCategory.RefinedGoods);
         Assert.Equal("Titanium", c.DisplayName("ti"));
-        Assert.Equal(MaterialCategory.Refined, c.Category("ti"));
+        Assert.Equal(MaterialCategory.RefinedGoods, c.Category("ti"));
     }
 }

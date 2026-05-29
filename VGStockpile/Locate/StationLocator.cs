@@ -44,6 +44,32 @@ internal sealed class StationLocator : IStationLocator
             return;
         }
 
+        FocusStation(sidePanel, station);
+    }
+
+    public void LocateByGuid(string stationGuid)
+    {
+        if (string.IsNullOrEmpty(stationGuid)) return;
+        var sidePanel = SidePanel.instance;
+        if (sidePanel is null)
+        {
+            _log.LogWarning("LocateByGuid: SidePanel not initialized.");
+            return;
+        }
+        var data = GalaxyMapData.current;
+        if (data is null) { _log.LogWarning("LocateByGuid: GalaxyMapData.current is null."); return; }
+        foreach (var poi in data.allPointsOfInterest)
+        {
+            if (poi is not SpaceStation st) continue;
+            if (st.guid != stationGuid) continue;
+            FocusStation(sidePanel, st);
+            return;
+        }
+        _log.LogWarning($"LocateByGuid: station guid '{stationGuid}' not found in GalaxyMapData.");
+    }
+
+    private void FocusStation(SidePanel sidePanel, SpaceStation station)
+    {
         var method = OpenMapAndFocusPoiMethod;
         if (method is null)
         {

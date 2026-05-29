@@ -7,14 +7,22 @@ internal static class JumpDistances
 {
     /// <summary>
     /// Returns systemGuid → jump count from the player's current system.
-    /// Computed once via BFS over <see cref="SystemMapData.GetAdjacentSystems"/>.
-    /// Current system reports 0; unreachable systems are absent from the
-    /// returned dictionary.
+    /// Thin wrapper over <see cref="ComputeFrom"/> using
+    /// <see cref="SystemMapData.current"/> as the start node.
     /// </summary>
-    public static IReadOnlyDictionary<string, int> ComputeFromCurrent()
+    internal static IReadOnlyDictionary<string, int> ComputeFromCurrent()
+        => ComputeFrom(SystemMapData.current);
+
+    /// <summary>
+    /// Returns systemGuid → jump count from <paramref name="start"/>.
+    /// Computed via BFS over <see cref="SystemMapData.GetAdjacentSystems"/>.
+    /// <paramref name="start"/> reports 0; unreachable systems are absent from
+    /// the returned dictionary. Returns an empty dictionary when
+    /// <paramref name="start"/> is <see langword="null"/>.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, int> ComputeFrom(SystemMapData? start)
     {
         var distances = new Dictionary<string, int>();
-        var start = SystemMapData.current;
         if (start is null) return distances;
 
         distances[start.guid] = 0;

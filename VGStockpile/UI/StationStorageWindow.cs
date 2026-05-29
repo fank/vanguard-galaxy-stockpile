@@ -5,6 +5,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using VGStockpile.Data;
+using VGStockpile.Transfers;
+using VGStockpile.UI.Transfers;
+using IReadOnlyTransferList = System.Collections.Generic.IReadOnlyList<VGStockpile.Transfers.TransferRequest>;
 
 namespace VGStockpile.UI;
 
@@ -13,6 +16,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private RectTransform _root        = null!;
     private RectTransform _gridContent = null!;
     private RectTransform _filterStrip = null!;
+    private RectTransform _scrollRect  = null!;
     private GameObject    _emptyState  = null!;
 
     private StorageGridBuilder              _builder         = null!;
@@ -20,6 +24,19 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private Func<HashSet<MaterialCategory>> _initialActive   = null!;
     private Action<HashSet<MaterialCategory>> _onActiveChanged = null!;
     private Action<StationStorageSnapshot>  _onLabelClick    = null!;
+
+    // Transfer row buttons (optional — null when transfers are disabled).
+    private bool                             _transfersEnabled;
+    private TransferConfig?                  _transferCfg;
+    private Func<string, StationContext>?    _getStationContext;
+    private Action<StationStorageSnapshot>?  _onPullClick;
+    private Action<StationStorageSnapshot>?  _onPushClick;
+
+    // In-flight strip (optional — null when transfers are disabled).
+    private Func<IReadOnlyTransferList>?     _getPending;
+    private Func<string, bool>?              _onCancelTransfer;
+    private Action<string>?                  _onLocateByGuid;
+    private Func<string, string>?            _stationDisplayNameByGuid;
 
     private readonly HashSet<MaterialCategory> _active = new();
     private readonly Dictionary<MaterialCategory, Image> _categoryButtons = new();
@@ -54,7 +71,16 @@ internal sealed class StationStorageWindow : MonoBehaviour
         MaterialCatalog catalog,
         Func<HashSet<MaterialCategory>> initialActive,
         Action<HashSet<MaterialCategory>> onActiveChanged,
-        Action<StationStorageSnapshot> onLabelClick)
+        Action<StationStorageSnapshot> onLabelClick,
+        bool transfersEnabled = false,
+        TransferConfig? transferCfg = null,
+        Func<string, StationContext>? getStationContext = null,
+        Action<StationStorageSnapshot>? onPullClick = null,
+        Action<StationStorageSnapshot>? onPushClick = null,
+        Func<IReadOnlyTransferList>? getPending = null,
+        Func<string, bool>? onCancelTransfer = null,
+        Action<string>? onLocateByGuid = null,
+        Func<string, string>? stationDisplayNameByGuid = null)
     {
         var go = new GameObject(
             "VGStockpile.Window",
@@ -63,12 +89,21 @@ internal sealed class StationStorageWindow : MonoBehaviour
         go.transform.SetParent(hudCanvas.transform, worldPositionStays: false);
 
         var w = go.GetComponent<StationStorageWindow>();
-        w._root             = (RectTransform)go.transform;
-        w._builder          = builder;
-        w._catalog          = catalog;
-        w._initialActive    = initialActive;
-        w._onActiveChanged  = onActiveChanged;
-        w._onLabelClick     = onLabelClick;
+        w._root               = (RectTransform)go.transform;
+        w._builder            = builder;
+        w._catalog            = catalog;
+        w._initialActive      = initialActive;
+        w._onActiveChanged    = onActiveChanged;
+        w._onLabelClick       = onLabelClick;
+        w._transfersEnabled        = transfersEnabled;
+        w._transferCfg             = transferCfg;
+        w._getStationContext       = getStationContext;
+        w._onPullClick             = onPullClick;
+        w._onPushClick             = onPushClick;
+        w._getPending              = getPending;
+        w._onCancelTransfer        = onCancelTransfer;
+        w._onLocateByGuid          = onLocateByGuid;
+        w._stationDisplayNameByGuid = stationDisplayNameByGuid;
         foreach (var c in initialActive()) w._active.Add(c);
         w.BuildLayout();
         w.Hide();
@@ -93,7 +128,10 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape)) Hide();
+        if (!Input.GetKeyDown(KeyCode.Escape)) return;
+        // If a transfer dialog is open, it consumes ESC (closes itself first).
+        if (TransferDialog.OpenCount > 0) return;
+        Hide();
     }
 
     private void BuildLayout()
@@ -109,6 +147,39 @@ internal sealed class StationStorageWindow : MonoBehaviour
         BuildHeader();
         BuildGrid();
         BuildEmptyState();
+
+        if (_transfersEnabled && _getPending is not null
+            && _onCancelTransfer is not null && _onLocateByGuid is not null
+            && _stationDisplayNameByGuid is not null)
+        {
+            BuildInFlightStrip();
+        }
+    }
+
+    private void BuildInFlightStrip()
+    {
+        // Shrink scroll area bottom to make room for the 36px footer strip
+        // (footer sits at y=4 with 36px height = 40px, plus 4px gap = 44px).
+        _scrollRect.offsetMin = new Vector2(8f, 44f);
+
+        // Footer container anchored to the bottom of the window, below the scroll area.
+        var footerGo = new GameObject("InFlightFooter",
+            typeof(RectTransform), typeof(Image));
+        var frt = (RectTransform)footerGo.transform;
+        frt.SetParent(_root, worldPositionStays: false);
+        frt.anchorMin = new Vector2(0f, 0f);
+        frt.anchorMax = new Vector2(1f, 0f);
+        frt.pivot     = new Vector2(0.5f, 0f);
+        frt.sizeDelta = new Vector2(0f, 36f);
+        frt.anchoredPosition = new Vector2(0f, 4f);
+        footerGo.GetComponent<Image>().color = new Color(0.08f, 0.10f, 0.14f, 0.85f);
+
+        InFlightStrip.Attach(
+            frt,
+            _getPending!,
+            _onCancelTransfer!,
+            _onLocateByGuid!,
+            _stationDisplayNameByGuid!);
     }
 
     private void BuildHeader()
@@ -240,6 +311,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         srt.anchorMax = new Vector2(1f, 1f);
         srt.offsetMin = new Vector2(8f, 8f);
         srt.offsetMax = new Vector2(-8f, -48f);
+        _scrollRect = srt;
         scroll.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.30f);
 
         var viewport = new GameObject("Viewport",
@@ -330,6 +402,18 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
     {
         var rowGo = NewRow(isHeader: true);
+
+        // Spacer to align header columns with data rows that have transfer buttons.
+        if (_transfersEnabled)
+        {
+            var btnSpacer = new GameObject("TransferBtnSpacer",
+                typeof(RectTransform), typeof(LayoutElement));
+            btnSpacer.transform.SetParent(rowGo.transform, worldPositionStays: false);
+            var bsle = btnSpacer.GetComponent<LayoutElement>();
+            bsle.preferredWidth = 90f;
+            bsle.minWidth       = 90f;
+            bsle.flexibleWidth  = 0f;
+        }
 
         var systemHeaderGo = new GameObject("SystemHeader",
             typeof(RectTransform), typeof(LayoutElement),
@@ -440,6 +524,18 @@ internal sealed class StationStorageWindow : MonoBehaviour
         StationStorageSnapshot snapshot)
     {
         var rowGo = NewRow(isHeader: false);
+
+        // Transfer Pull/Push buttons (prepended before any content cell).
+        if (_transfersEnabled && _transferCfg is not null && _getStationContext is not null)
+        {
+            var transferSnap = snapshot;
+            TransferRowButtons.Create(
+                rowGo.transform,
+                _transferCfg,
+                () => _getStationContext(transferSnap.StationId),
+                () => _onPullClick?.Invoke(transferSnap),
+                () => _onPushClick?.Invoke(transferSnap));
+        }
 
         // System name (leftmost).
         var systemGo = new GameObject("System",

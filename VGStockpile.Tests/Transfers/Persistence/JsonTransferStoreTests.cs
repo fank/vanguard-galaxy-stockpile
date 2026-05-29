@@ -1,0 +1,78 @@
+using System.Collections.Generic;
+using System.IO;
+using VGStockpile.Transfers;
+using VGStockpile.Transfers.Persistence;
+using Xunit;
+
+namespace VGStockpile.Tests.Transfers.Persistence;
+
+public class JsonTransferStoreTests : System.IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(),
+        "vgstockpile-tests-" + System.Guid.NewGuid().ToString("N"));
+
+    public JsonTransferStoreTests() { Directory.CreateDirectory(_dir); }
+    public void Dispose() { try { Directory.Delete(_dir, recursive: true); } catch { } }
+
+    private string Path1 => Path.Combine(_dir, "save1.vgstockpile-transfers.json");
+
+    [Fact]
+    public void Load_MissingFile_ReturnsEmpty()
+    {
+        var store = new JsonTransferStore(_ => { });
+        var loaded = store.Load(Path1);
+        Assert.Equal(TransferSidecar.CurrentVersion, loaded.Version);
+        Assert.Empty(loaded.Items);
+    }
+
+    [Fact]
+    public void Load_MalformedJson_ReturnsEmptyAndLogsWarning()
+    {
+        File.WriteAllText(Path1, "{ not valid json");
+        string? warned = null;
+        var store = new JsonTransferStore(msg => warned = msg);
+        var loaded = store.Load(Path1);
+        Assert.Empty(loaded.Items);
+        Assert.NotNull(warned);
+    }
+
+    [Fact]
+    public void Save_ThenLoad_RoundTrips()
+    {
+        var sidecar = new TransferSidecar(1, new List<TransferRequest>
+        {
+            new("id1", "src", "dst",
+                new List<TransferManifestLine> { new("iron", 200) },
+                420, 5, 130f, 60f, TransferStatus.Pending),
+        });
+        var store = new JsonTransferStore(_ => { });
+        store.Save(Path1, sidecar);
+        var loaded = store.Load(Path1);
+        Assert.Equal(1, loaded.Version);
+        Assert.Single(loaded.Items);
+        var item = loaded.Items[0];
+        Assert.Equal("id1", item.Id);
+        Assert.Equal("src", item.SourceStationGuid);
+        Assert.Equal("dst", item.DestStationGuid);
+        Assert.Equal(420, item.FeeCredits);
+        Assert.Equal(5, item.JumpDistance);
+        Assert.Equal(130f, item.TotalSeconds);
+        Assert.Equal(60f, item.RemainingSeconds);
+        Assert.Equal(TransferStatus.Pending, item.Status);
+        Assert.Single(item.Manifest);
+        Assert.Equal("iron", item.Manifest[0].ItemIdentifier);
+        Assert.Equal(200, item.Manifest[0].Quantity);
+    }
+
+    [Fact]
+    public void Save_RefusesToOverwriteHigherVersion()
+    {
+        File.WriteAllText(Path1, "{\"Version\":99,\"Items\":[]}");
+        string? warned = null;
+        var store = new JsonTransferStore(msg => warned = msg);
+        var older = new TransferSidecar(1, new List<TransferRequest>());
+        store.Save(Path1, older);
+        Assert.Contains("\"Version\":99", File.ReadAllText(Path1));
+        Assert.NotNull(warned);
+    }
+}

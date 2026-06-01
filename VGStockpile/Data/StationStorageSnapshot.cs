@@ -8,4 +8,6 @@ internal sealed record StationStorageSnapshot(
     string SystemGuid,
     string SystemName,
     string FactionId,
-    IReadOnlyDictionary<string, int> Items);
+    IReadOnlyDictionary<string, int> Items,
+    // null = station has no refinery; true/false = auto-refine on/off.
+    bool? AutoRefine = null);

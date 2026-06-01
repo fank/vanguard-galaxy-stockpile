@@ -27,28 +27,4 @@ internal static class UiText
     }
 
     public static TextMeshProUGUI Component(GameObject go) => go.GetComponent<TextMeshProUGUI>();
-
-    /// <summary>
-    /// Strips a leading '@', then inserts spaces before CamelCase transitions and digit-runs.
-    /// Example: "@OreCommon32" → "Ore Common 32".
-    /// </summary>
-    public static string HumanizeIdentifier(string raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return raw;
-        if (raw[0] == '@') raw = raw.Substring(1);
-        var sb = new System.Text.StringBuilder(raw.Length + 8);
-        for (var i = 0; i < raw.Length; i++)
-        {
-            var c = raw[i];
-            if (i > 0)
-            {
-                var prev = raw[i - 1];
-                if ((char.IsUpper(c) && !char.IsUpper(prev)) ||
-                    (char.IsDigit(c) && !char.IsDigit(prev) && prev != ' '))
-                    sb.Append(' ');
-            }
-            sb.Append(c);
-        }
-        return sb.ToString();
-    }
 }

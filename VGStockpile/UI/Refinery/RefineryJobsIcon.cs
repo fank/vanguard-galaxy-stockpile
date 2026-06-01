@@ -4,32 +4,32 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace VGStockpile.UI;
+namespace VGStockpile.UI.Refinery;
 
-internal sealed class StationStorageIcon : MonoBehaviour
+/// <summary>
+/// HUD toggle button for the refinery-jobs window. Mirrors
+/// <see cref="StationStorageIcon"/>; uses the game's "Refinery" sprite, falling
+/// back to a "REF" text label until the sprite resolves.
+/// </summary>
+internal sealed class RefineryJobsIcon : MonoBehaviour
 {
-    // SkillIcons1_31 at atlas rect (463, 793). Multiple Sprite instances
-    // share this name in the runtime registry; disambiguate by rect.
-    private const string SpriteName  = "SkillIcons1_31";
-    private const int    SpriteRectX = 463;
-    private const int    SpriteRectY = 793;
+    private const string SpriteName = "Refinery";
 
     private Image           _iconImg     = null!;
     private TextMeshProUGUI _fallbackTxt = null!;
-    private ManualLogSource _log         = null!;
     private float           _nextRetry   = 0f;
     private bool            _resolved    = false;
 
-    public static StationStorageIcon Create(
+    public static RefineryJobsIcon Create(
         Canvas hudCanvas,
         Action onClick,
         float rightPadding,
         float topPadding,
         ManualLogSource log)
     {
-        var go = new GameObject("VGStockpile.Icon",
+        var go = new GameObject("VGStockpile.RefineryIcon",
             typeof(RectTransform), typeof(Image), typeof(Button),
-            typeof(StationStorageIcon));
+            typeof(RefineryJobsIcon));
         go.transform.SetParent(hudCanvas.transform, worldPositionStays: false);
 
         var rt = (RectTransform)go.transform;
@@ -52,7 +52,7 @@ internal sealed class StationStorageIcon : MonoBehaviour
         iconImg.preserveAspect = true;
         iconImg.raycastTarget  = false;
         // Transparent until the sprite resolves — a spriteless Image renders as
-        // a white box that would otherwise flash before the sprite loads.
+        // a white box, which flashed before "Refinery" finished loading.
         iconImg.color = new Color(1f, 1f, 1f, 0f);
 
         var fbGo = new GameObject("Fallback", typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -61,20 +61,18 @@ internal sealed class StationStorageIcon : MonoBehaviour
         fbRt.anchorMin = Vector2.zero; fbRt.anchorMax = Vector2.one;
         fbRt.offsetMin = Vector2.zero; fbRt.offsetMax = Vector2.zero;
         var lbl = fbGo.GetComponent<TextMeshProUGUI>();
-        lbl.text      = "STK";
+        lbl.text      = "REF";
         lbl.alignment = TextAlignmentOptions.Center;
-        lbl.fontSize  = 14f;
+        lbl.fontSize  = 13f;
         lbl.fontStyle = FontStyles.Bold;
         lbl.raycastTarget = false;
 
-        var icon = go.GetComponent<StationStorageIcon>();
+        var icon = go.GetComponent<RefineryJobsIcon>();
         icon._iconImg     = iconImg;
         icon._fallbackTxt = lbl;
-        icon._log         = log;
         icon.TryResolveSprite();
 
-        var button = go.GetComponent<Button>();
-        button.onClick.AddListener(() => onClick());
+        go.GetComponent<Button>().onClick.AddListener(() => onClick());
         return icon;
     }
 
@@ -88,7 +86,7 @@ internal sealed class StationStorageIcon : MonoBehaviour
 
     private void TryResolveSprite()
     {
-        var sprite = SpriteLookup.FindByNameAndRect(SpriteName, SpriteRectX, SpriteRectY);
+        var sprite = SpriteLookup.FindByName(SpriteName);
         if (sprite is null) return;
 
         _iconImg.sprite = sprite;

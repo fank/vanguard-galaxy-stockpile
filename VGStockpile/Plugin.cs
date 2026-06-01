@@ -14,6 +14,7 @@ using VGStockpile.Transfers;
 using VGStockpile.Transfers.Engine;
 using VGStockpile.Transfers.Persistence;
 using VGStockpile.UI;
+using VGStockpile.UI.Refinery;
 using VGStockpile.UI.Transfers;
 
 namespace VGStockpile;
@@ -34,9 +35,13 @@ public class Plugin : BaseUnityPlugin
     internal StationStorageReader    Reader  { get; private set; } = null!;
     internal StationLocator          Locator { get; private set; } = null!;
     internal StorageGridBuilder      Builder { get; private set; } = null!;
+    internal RefineryJobReader       RefineryReader  { get; private set; } = null!;
+    internal RefineryJobsBuilder     RefineryBuilder { get; private set; } = null!;
 
     private StationStorageIcon?      _icon;
     private StationStorageWindow?    _window;
+    private RefineryJobsIcon?        _refineryIcon;
+    private RefineryJobsWindow?      _refineryWindow;
     private Canvas?                  _hudCanvas;
     private Harmony                  _harmony = null!;
 
@@ -57,6 +62,8 @@ public class Plugin : BaseUnityPlugin
         Reader  = new StationStorageReader(Log);
         Locator = new StationLocator(Log);
         Builder = new StorageGridBuilder(Catalog);
+        RefineryReader  = new RefineryJobReader(Log);
+        RefineryBuilder = new RefineryJobsBuilder(Catalog);
 
         if (Cfg.TransfersEnabled.Value)
         {
@@ -132,6 +139,25 @@ public class Plugin : BaseUnityPlugin
             hudCanvas,
             onClick: ToggleWindow,
             rightPadding: Cfg.IconRightPadding.Value,
+            topPadding:   Cfg.IconTopPadding.Value,
+            log:          Log);
+
+        _refineryWindow = RefineryJobsWindow.Create(
+            hudCanvas, RefineryBuilder, Catalog,
+            capture: () => RefineryReader.CaptureAll(),
+            onStationClick: guid =>
+            {
+                Locator.LocateByGuid(guid);
+                if (Cfg.CloseWindowOnLocate.Value) _refineryWindow?.Hide();
+            },
+            log: Log);
+
+        // Place the refinery-jobs icon to the left of the stockpile icon
+        // (icons are 40px wide; +48 leaves an 8px gap), same top edge.
+        _refineryIcon = RefineryJobsIcon.Create(
+            hudCanvas,
+            onClick: ToggleRefineryWindow,
+            rightPadding: Cfg.IconRightPadding.Value + 48f,
             topPadding:   Cfg.IconTopPadding.Value,
             log:          Log);
 
@@ -325,6 +351,20 @@ public class Plugin : BaseUnityPlugin
         catch (System.Exception ex)
         {
             Log.LogError($"Failed to capture station storage: {ex}");
+        }
+    }
+
+    private void ToggleRefineryWindow()
+    {
+        if (_refineryWindow is null) return;
+        try
+        {
+            var jobs = RefineryReader.CaptureAll();
+            _refineryWindow.Toggle(jobs);
+        }
+        catch (System.Exception ex)
+        {
+            Log.LogError($"Failed to capture refinery jobs: {ex}");
         }
     }
 

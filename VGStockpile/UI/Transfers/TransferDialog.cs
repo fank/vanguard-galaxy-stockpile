@@ -563,7 +563,7 @@ internal sealed class TransferDialog : MonoBehaviour
         hlg.childForceExpandHeight = false;
         hlg.childAlignment       = TextAnchor.MiddleLeft;
 
-        var totalGo = UiText.Label("Total", footerGo.transform, "Fee  ¢0", 14f, FontStyles.Bold);
+        var totalGo = UiText.Label("Total", footerGo.transform, "Fee  $0", 14f, FontStyles.Bold);
         var totalLe = totalGo.AddComponent<LayoutElement>();
         totalLe.preferredWidth  = 180f;
         totalLe.preferredHeight = 30f;
@@ -638,7 +638,7 @@ internal sealed class TransferDialog : MonoBehaviour
         var fee    = FeeCalculator.Compute(_jumpDistance, totalUnits, _cfg);
         var eta    = EtaCalculator.ComputeSeconds(_jumpDistance, _cfg);
         var etaInt = (int)System.Math.Ceiling(eta);
-        _totalTmp.text = $"Fee  ¢{fee}";
+        _totalTmp.text = $"Fee  ${fee}";
         _etaTmp.text   = $"ETA  {etaInt / 60:00}:{etaInt % 60:00}";
     }
 

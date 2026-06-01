@@ -35,7 +35,7 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
     // slot-counts reconfigures these in place (job <-> available) instead of
     // rebuilding — so a finishing job doesn't yank the scroll position.
     private readonly List<SlotHandle> _slots = new();
-    private string _lastSignature = "";
+    private IReadOnlyList<RefineryStationGroup> _lastGroups = System.Array.Empty<RefineryStationGroup>();
 
     private struct SlotHandle
     {
@@ -208,13 +208,13 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
         scroll.horizontal = false;
         scroll.vertical   = true;
 
-        var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
+        // RectMask2D clips rectangularly in-shader — no Image/extra draw call.
+        var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
         var vrt = (RectTransform)viewport.transform;
         vrt.SetParent(brt, worldPositionStays: false);
         vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
         vrt.offsetMin = new Vector2(6f, 6f);
         vrt.offsetMax = new Vector2(-6f, -6f);
-        viewport.GetComponent<Image>().color = new Color(0, 0, 0, 0.01f);
 
         var content = new GameObject("Content",
             typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
@@ -306,8 +306,7 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
         // Fast path: same stations + same slot-counts as last time -> just
         // reconfigure the existing slot widgets (job <-> available) in place.
         // A finishing job keeps the slot, so the layout/scroll never jump.
-        var sig = Signature(groups);
-        if (sig == _lastSignature && _slots.Count == flat.Count)
+        if (StructureEquals(groups) && _slots.Count == flat.Count)
         {
             for (var i = 0; i < flat.Count; i++)
             {
@@ -318,12 +317,19 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
         }
 
         // Structure changed (station appeared/left, or slot-count changed) -> rebuild.
-        _lastSignature = sig;
+        _lastGroups = groups;
         var scrollPos = _scroll.verticalNormalizedPosition;
         _slots.Clear();
 
+        // Detach before Destroy: Destroy is deferred to end of frame, so the
+        // old children would still count in the layout during the rebuild +
+        // ForceRebuildLayoutImmediate below, distorting size/scroll.
         for (var i = _content.childCount - 1; i >= 0; i--)
-            Destroy(_content.GetChild(i).gameObject);
+        {
+            var child = _content.GetChild(i);
+            child.SetParent(null, worldPositionStays: false);
+            Destroy(child.gameObject);
+        }
 
         _empty.SetActive(groups.Count == 0);
 
@@ -349,15 +355,20 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
     // active jobs (jobs queued under a higher skill cap can outlast it).
     private static int SlotCount(RefineryStationGroup g) => Mathf.Max(g.Jobs.Count, g.MaxJobs);
 
-    // Identity of the displayed structure: stations and how many slots each has.
-    // Unchanged => same widgets in the same order, so reconfigure in place. The
-    // mix of job vs available within a station can change without a rebuild.
-    private static string Signature(IReadOnlyList<RefineryStationGroup> groups)
+    // True when the displayed structure is unchanged from last refresh: same
+    // stations in order, each with the same slot count. The job-vs-available
+    // mix within a station can change without a rebuild. Allocation-free so it
+    // can run every second. (The string-signature alternative allocated.)
+    private bool StructureEquals(IReadOnlyList<RefineryStationGroup> groups)
     {
-        var sb = new System.Text.StringBuilder();
-        foreach (var g in groups)
-            sb.Append(g.StationId).Append('/').Append(SlotCount(g)).Append(';');
-        return sb.ToString();
+        if (_lastGroups.Count != groups.Count) return false;
+        for (var i = 0; i < groups.Count; i++)
+        {
+            if (_lastGroups[i].StationId != groups[i].StationId ||
+                SlotCount(_lastGroups[i]) != SlotCount(groups[i]))
+                return false;
+        }
+        return true;
     }
 
     private void ConfigureJob(SlotHandle h, RefineryJobRow row)

@@ -35,15 +35,19 @@ internal sealed class RefineryJobsBuilder
         return snapshots
             .Select(s => new RefineryJobRow(s, _catalog.DisplayName(s.MaterialId)))
             .GroupBy(r => r.Snapshot.StationId)
-            .Select(g => new RefineryStationGroup(
-                g.Key,
-                g.First().Snapshot.StationName,
-                g.First().Snapshot.SystemName,
-                g.First().Snapshot.FactionId,
-                g.First().Snapshot.MaxJobs,
-                g.OrderBy(r => r.MaterialName, StringComparer.OrdinalIgnoreCase)
-                 .ThenBy(r => r.Snapshot.MaterialId, StringComparer.Ordinal)
-                 .ToArray()))
+            .Select(g =>
+            {
+                var first = g.First().Snapshot;
+                return new RefineryStationGroup(
+                    g.Key,
+                    first.StationName,
+                    first.SystemName,
+                    first.FactionId,
+                    first.MaxJobs,
+                    g.OrderBy(r => r.MaterialName, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(r => r.Snapshot.MaterialId, StringComparer.Ordinal)
+                     .ToArray());
+            })
             .OrderBy(grp => grp.StationName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(grp => grp.StationId, StringComparer.Ordinal)
             .ToArray();

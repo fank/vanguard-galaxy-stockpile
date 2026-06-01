@@ -20,6 +20,7 @@ internal sealed class MaterialCatalog : IMaterialCatalog
     {
         var type = LookupType(materialTypeId);
         var raw  = string.IsNullOrEmpty(type?.displayName) ? materialTypeId : type!.displayName;
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
         // displayName is a localization token (e.g. "@OreRare70"); resolve it
         // through the game's table to the current language. Translate is a
         // no-op for non-'@' strings, so the id fallback passes through.

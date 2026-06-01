@@ -88,7 +88,9 @@ internal sealed class RefineryJobsIcon : MonoBehaviour
 
         if (Time.unscaledTime >= _nextRetry)
         {
-            _nextRetry = Time.unscaledTime + 0.2f; // resolve quickly once the bundle loads
+            // Fast retries during the brief load window; back off afterwards so a
+            // never-resolving sprite doesn't spam the expensive Resources scan.
+            _nextRetry = Time.unscaledTime + (Time.unscaledTime < _fallbackAt ? 0.2f : 2f);
             TryResolveSprite();
             if (_resolved) return;
         }

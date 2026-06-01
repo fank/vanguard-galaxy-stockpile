@@ -3,6 +3,7 @@ using Behaviour.Item;
 using Behaviour.UI;
 using Source.Galaxy;
 using Source.Item;
+using Source.Util;
 using UnityEngine;
 
 namespace VGStockpile.Data;
@@ -18,7 +19,11 @@ internal sealed class MaterialCatalog : IMaterialCatalog
     public string DisplayName(string materialTypeId)
     {
         var type = LookupType(materialTypeId);
-        return string.IsNullOrEmpty(type?.displayName) ? materialTypeId : type!.displayName;
+        var raw  = string.IsNullOrEmpty(type?.displayName) ? materialTypeId : type!.displayName;
+        // displayName is a localization token (e.g. "@OreRare70"); resolve it
+        // through the game's table to the current language. Translate is a
+        // no-op for non-'@' strings, so the id fallback passes through.
+        return Translation.Translate(raw);
     }
 
     public MaterialCategory Category(string materialTypeId)

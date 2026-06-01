@@ -50,21 +50,6 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private static readonly Color BtnActive   = new(0.30f, 0.40f, 0.50f, 0.85f);
     private static readonly Color BtnInactive = new(0.20f, 0.20f, 0.20f, 0.80f);
 
-    // Visual descriptors for each filter button. Sprite rect coordinates
-    // disambiguate runtime name collisions — Resources.FindObjectsOfTypeAll
-    // can return multiple Sprite instances sharing a name with different
-    // atlas rects (see SpriteLookup). Coords match the values dumped by
-    // IconDumper into BepInEx/cache/vgstockpile-icons/manifest.tsv.
-    private static readonly (MaterialCategory Cat, string Sprite, int RectX, int RectY, string Label)[] FilterDefs =
-    {
-        (MaterialCategory.Ore,             "OreIcons_2",       192, 384, "Ores"),
-        (MaterialCategory.RefinedCanister, "MaterialIcons_0",    0,  96, "Refined Canisters"),
-        (MaterialCategory.RefinedGoods,    "CraftingIcons2_0",   0,   0, "Refined Products"),
-        (MaterialCategory.Crystal,         "CrystalIcons_0",     0,  96, "Crystals"),
-        (MaterialCategory.TradeGoods,      "CraftingIcons_1",   96, 384, "Trade Goods"),
-        (MaterialCategory.Salvage,         "SalvageIcons_0",     0,  96, "Salvage"),
-    };
-
     public static StationStorageWindow Create(
         Canvas hudCanvas,
         StorageGridBuilder builder,
@@ -245,7 +230,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private void BuildCategoryButtons()
     {
-        foreach (var (cat, sprName, rectX, rectY, label) in FilterDefs)
+        foreach (var (cat, sprName, rectX, rectY, label) in MaterialCategoryDisplay.Filterable)
         {
             var btnGo = new GameObject($"Filter_{cat}",
                 typeof(RectTransform), typeof(Image), typeof(Button),

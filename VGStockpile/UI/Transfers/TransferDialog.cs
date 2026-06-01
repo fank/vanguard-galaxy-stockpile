@@ -334,8 +334,58 @@ internal sealed class TransferDialog : MonoBehaviour
             return;
         }
 
-        foreach (var kv in _availability)
-            BuildRow(crt, kv.Key, kv.Value);
+        // Group rows by material category (Ores, Crystals, …) in the same
+        // order as the main view's filter strip, with a section header before
+        // each group.
+        foreach (var group in TransferRowGrouping.Build(_availability.Keys, _catalog))
+        {
+            BuildCategoryHeader(crt, group.Category);
+            foreach (var id in group.MaterialIds)
+                BuildRow(crt, id, _availability[id]);
+        }
+    }
+
+    private void BuildCategoryHeader(Transform parent, MaterialCategory category)
+    {
+        var headerGo = new GameObject($"Header_{category}",
+            typeof(RectTransform), typeof(Image), typeof(HorizontalLayoutGroup),
+            typeof(LayoutElement));
+        headerGo.transform.SetParent(parent, worldPositionStays: false);
+
+        headerGo.GetComponent<Image>().color = new Color(0.12f, 0.16f, 0.21f, 0.9f);
+
+        var hlg = headerGo.GetComponent<HorizontalLayoutGroup>();
+        hlg.spacing              = 6f;
+        hlg.padding              = new RectOffset(6, 6, 0, 0);
+        hlg.childForceExpandWidth  = false;
+        hlg.childForceExpandHeight = true;
+        hlg.childAlignment       = TextAnchor.MiddleLeft;
+
+        var le = headerGo.GetComponent<LayoutElement>();
+        le.preferredHeight = 22f;
+
+        var iconSprite = MaterialCategoryDisplay.Icon(category);
+        if (iconSprite != null)
+        {
+            var iconGo = new GameObject("Icon",
+                typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            iconGo.transform.SetParent(headerGo.transform, worldPositionStays: false);
+            var iconLe = iconGo.GetComponent<LayoutElement>();
+            iconLe.preferredWidth  = 18f;
+            iconLe.preferredHeight = 18f;
+            iconLe.flexibleWidth   = 0f;
+            var iconImg = iconGo.GetComponent<Image>();
+            iconImg.preserveAspect = true;
+            iconImg.raycastTarget  = false;
+            iconImg.sprite         = iconSprite;
+            iconImg.color          = Color.white;
+        }
+
+        var labelGo = UiText.Label("Label", headerGo.transform,
+            MaterialCategoryDisplay.Label(category), 12f, FontStyles.Bold);
+        var labelLe = labelGo.AddComponent<LayoutElement>();
+        labelLe.flexibleWidth = 1f;
+        UiText.Component(labelGo).color = new Color(0.78f, 0.85f, 0.92f);
     }
 
     private void BuildRow(Transform parent, string identifier, int available)
@@ -369,7 +419,11 @@ internal sealed class TransferDialog : MonoBehaviour
         if (iconSprite != null) { iconImg.sprite = iconSprite; iconImg.color = Color.white; }
         else                    { iconImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.6f); }
 
-        var displayLabel = ResolveLabel(identifier);
+        // Use the same localized display name the main grid shows — the game's
+        // InventoryItemType.displayName via the catalog. (An earlier heuristic
+        // here mis-classified valid single-word translations as raw identifiers
+        // and replaced them with a humanized object name.)
+        var displayLabel = _catalog.DisplayName(identifier);
 
         var nameGo = UiText.Label("Name", rowGo.transform, displayLabel, 13f);
         var nameLe = nameGo.AddComponent<LayoutElement>();
@@ -587,25 +641,6 @@ internal sealed class TransferDialog : MonoBehaviour
         _totalTmp.text = $"Fee  ¢{fee}";
         _etaTmp.text   = $"ETA  {etaInt / 60:00}:{etaInt % 60:00}";
     }
-
-    private string ResolveLabel(string identifier)
-    {
-        var type = _catalog.GetItemType(identifier);
-        if (type is not null)
-        {
-            // The data files commonly set displayName to the same '@Id' literal as the
-            // Unity object name, so we humanize whenever the candidate looks like an
-            // identifier (starts with '@' or has no spaces and mixed case).
-            if (!string.IsNullOrEmpty(type.displayName) && !LooksLikeIdentifier(type.displayName))
-                return type.displayName;
-            if (!string.IsNullOrEmpty(type.name))
-                return UiText.HumanizeIdentifier(type.name);
-        }
-        return UiText.HumanizeIdentifier(identifier);
-    }
-
-    private static bool LooksLikeIdentifier(string s) =>
-        s.Length > 0 && (s[0] == '@' || !s.Contains(' '));
 
     private static void MakeButton(Transform parent, string label, float width, Action onClick)
     {

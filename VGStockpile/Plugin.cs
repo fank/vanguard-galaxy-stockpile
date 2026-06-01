@@ -227,7 +227,7 @@ public class Plugin : BaseUnityPlugin
             sourceStock, Cfg.ToTransferConfig(), jumpDistance,
             Catalog,
             onConfirmRequest: manifest => CommitTransfer(snap, dir, manifest),
-            onCancel: () => Log.LogInfo($"{dir} dialog cancelled."));
+            onCancel: () => Log.LogDebug($"{dir} dialog cancelled."));
     }
 
     private TransferDialogOutcome CommitTransfer(

@@ -9,6 +9,7 @@ internal sealed record RefineryJobSnapshot(
     string StationId,
     string StationName,
     string SystemGuid,
+    string SystemName,
     string FactionId,
     string MaterialId,
     float  ProgressFraction,   // 0..1 overall job completion

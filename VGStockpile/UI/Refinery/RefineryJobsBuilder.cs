@@ -12,6 +12,7 @@ internal readonly record struct RefineryJobRow(
 internal readonly record struct RefineryStationGroup(
     string StationId,
     string StationName,
+    string SystemName,
     string FactionId,
     int MaxJobs,
     IReadOnlyList<RefineryJobRow> Jobs);
@@ -37,6 +38,7 @@ internal sealed class RefineryJobsBuilder
             .Select(g => new RefineryStationGroup(
                 g.Key,
                 g.First().Snapshot.StationName,
+                g.First().Snapshot.SystemName,
                 g.First().Snapshot.FactionId,
                 g.First().Snapshot.MaxJobs,
                 g.OrderBy(r => r.MaterialName, StringComparer.OrdinalIgnoreCase)

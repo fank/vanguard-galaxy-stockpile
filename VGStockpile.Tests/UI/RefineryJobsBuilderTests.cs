@@ -14,6 +14,7 @@ public class RefineryJobsBuilderTests
             StationId:       $"st-{station}",
             StationName:     station,
             SystemGuid:      "sys",
+            SystemName:      "System",
             FactionId:       "fac",
             MaterialId:      matId,
             ProgressFraction: progress,

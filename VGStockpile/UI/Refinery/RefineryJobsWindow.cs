@@ -433,6 +433,17 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
         if (facSprite != null) { facImg.sprite = facSprite; facImg.color = Color.white; }
         else                   { facImg.color = new Color(0.3f, 0.3f, 0.3f, 0.4f); }
 
+        // System name first (dimmed), like the stockpile grid's System column.
+        if (!string.IsNullOrEmpty(group.SystemName))
+        {
+            var sysGo = UiText.Label("System", headerGo.transform, group.SystemName, 13f, FontStyles.Bold);
+            var sysTmp = UiText.Component(sysGo);
+            NoWrap(sysTmp);
+            sysTmp.color = new Color(0.55f, 0.60f, 0.68f, 1f);
+            var sysLe = sysGo.AddComponent<LayoutElement>();
+            sysLe.preferredWidth = 110f; sysLe.minWidth = 40f; sysLe.flexibleWidth = 0f;
+        }
+
         // Label as a sized HLG child, mirroring the job rows (which render their
         // text fine) rather than a stretched anchor (which clipped the name).
         var label = UiText.Label("Label", headerGo.transform, group.StationName, 13f, FontStyles.Bold);

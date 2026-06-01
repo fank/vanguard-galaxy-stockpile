@@ -47,6 +47,7 @@ internal sealed class RefineryJobReader
                     StationId:        st.guid ?? "",
                     StationName:      st.name ?? "",
                     SystemGuid:       st.system?.guid ?? "",
+                    SystemName:       st.system?.name ?? "",
                     FactionId:        st.faction?.identifier ?? "",
                     MaterialId:       id,
                     ProgressFraction: RefineryMath.ProgressFraction(

@@ -433,17 +433,6 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
         hlg.childControlWidth = true;
         hlg.childAlignment = TextAnchor.MiddleLeft;
 
-        // Faction icon before the station name, like the stockpile grid.
-        var facGo = new GameObject("Faction", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
-        facGo.transform.SetParent(headerGo.transform, worldPositionStays: false);
-        var facLe = facGo.GetComponent<LayoutElement>();
-        facLe.preferredWidth = 18f; facLe.preferredHeight = 18f; facLe.flexibleWidth = 0f;
-        var facImg = facGo.GetComponent<Image>();
-        facImg.preserveAspect = true; facImg.raycastTarget = false;
-        var facSprite = _catalog.FactionIcon(group.FactionId);
-        if (facSprite != null) { facImg.sprite = facSprite; facImg.color = Color.white; }
-        else                   { facImg.color = new Color(0.3f, 0.3f, 0.3f, 0.4f); }
-
         // System name first (dimmed), like the stockpile grid's System column.
         if (!string.IsNullOrEmpty(group.SystemName))
         {
@@ -454,6 +443,18 @@ internal sealed class RefineryJobsWindow : MonoBehaviour
             var sysLe = sysGo.AddComponent<LayoutElement>();
             sysLe.preferredWidth = 110f; sysLe.minWidth = 40f; sysLe.flexibleWidth = 0f;
         }
+
+        // Faction icon immediately before the station name — it's the owner of
+        // the station, not the system, so it sits with the station not the sector.
+        var facGo = new GameObject("Faction", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+        facGo.transform.SetParent(headerGo.transform, worldPositionStays: false);
+        var facLe = facGo.GetComponent<LayoutElement>();
+        facLe.preferredWidth = 18f; facLe.preferredHeight = 18f; facLe.flexibleWidth = 0f;
+        var facImg = facGo.GetComponent<Image>();
+        facImg.preserveAspect = true; facImg.raycastTarget = false;
+        var facSprite = _catalog.FactionIcon(group.FactionId);
+        if (facSprite != null) { facImg.sprite = facSprite; facImg.color = Color.white; }
+        else                   { facImg.color = new Color(0.3f, 0.3f, 0.3f, 0.4f); }
 
         // Label as a sized HLG child, mirroring the job rows (which render their
         // text fine) rather than a stretched anchor (which clipped the name).

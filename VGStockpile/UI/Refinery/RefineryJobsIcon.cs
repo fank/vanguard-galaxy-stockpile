@@ -18,6 +18,7 @@ internal sealed class RefineryJobsIcon : MonoBehaviour
     private Image           _iconImg     = null!;
     private TextMeshProUGUI _fallbackTxt = null!;
     private float           _nextRetry   = 0f;
+    private float           _fallbackAt  = 0f;
     private bool            _resolved    = false;
 
     public static RefineryJobsIcon Create(
@@ -70,6 +71,11 @@ internal sealed class RefineryJobsIcon : MonoBehaviour
         var icon = go.GetComponent<RefineryJobsIcon>();
         icon._iconImg     = iconImg;
         icon._fallbackTxt = lbl;
+        // Hide the "REF" text during the normal sprite-load window; only reveal
+        // it if "Refinery" still hasn't loaded after the grace period (its bundle
+        // loads a beat after the HUD, unlike the always-present stockpile sprite).
+        lbl.gameObject.SetActive(false);
+        icon._fallbackAt = Time.unscaledTime + 2f;
         icon.TryResolveSprite();
 
         go.GetComponent<Button>().onClick.AddListener(() => onClick());
@@ -79,9 +85,19 @@ internal sealed class RefineryJobsIcon : MonoBehaviour
     private void Update()
     {
         if (_resolved) return;
-        if (Time.unscaledTime < _nextRetry) return;
-        _nextRetry = Time.unscaledTime + 1f;
-        TryResolveSprite();
+
+        if (Time.unscaledTime >= _nextRetry)
+        {
+            // Fast retries during the brief load window; back off afterwards so a
+            // never-resolving sprite doesn't spam the expensive Resources scan.
+            _nextRetry = Time.unscaledTime + (Time.unscaledTime < _fallbackAt ? 0.2f : 2f);
+            TryResolveSprite();
+            if (_resolved) return;
+        }
+
+        // Only show the "REF" text if the sprite genuinely failed to load in time.
+        if (Time.unscaledTime >= _fallbackAt && !_fallbackTxt.gameObject.activeSelf)
+            _fallbackTxt.gameObject.SetActive(true);
     }
 
     private void TryResolveSprite()

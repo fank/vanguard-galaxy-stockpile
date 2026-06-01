@@ -382,6 +382,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private const float FactionIconWidth = 24f;
     private const float StationNameWidth = 90f;
     private const float JumpsCellWidth   = 36f;
+    private const float AutoRefineCellWidth = 34f;
     private const float MaterialCellWidth = 56f;
 
     private void BuildHeaderRow(IReadOnlyList<string> materialIds)
@@ -469,6 +470,44 @@ internal sealed class StationStorageWindow : MonoBehaviour
                        ?? SpriteLookup.FindByName("Map_Poi_Location_Jumpgate");
         if (jhSprite != null) { jhImg.sprite = jhSprite; jhImg.color = Color.white; }
         else                  { jhImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.6f); }
+
+        // Auto-Refine column header: the refinery icon, with the whole cell a
+        // transparent hit-target so the tooltip fires across the slot.
+        var autoHeaderGo = new GameObject("AutoRefineHeader",
+            typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+        autoHeaderGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var ahle = autoHeaderGo.GetComponent<LayoutElement>();
+        ahle.preferredWidth  = AutoRefineCellWidth;
+        ahle.preferredHeight = 24f;
+        ahle.flexibleWidth   = 0f;
+        autoHeaderGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+
+        var ahTip = autoHeaderGo.AddComponent<TooltipSource>();
+        ahTip.Title    = "Auto-Refine";
+        ahTip.BodyText = "Whether this station automatically refines its stored ore. " +
+                         "Blank means the station has no refinery.";
+
+        var ahImgGo = new GameObject("Icon",
+            typeof(RectTransform), typeof(Image));
+        var ahirt = (RectTransform)ahImgGo.transform;
+        ahirt.SetParent(autoHeaderGo.transform, worldPositionStays: false);
+        ahirt.anchorMin = new Vector2(0.5f, 0.5f);
+        ahirt.anchorMax = new Vector2(0.5f, 0.5f);
+        ahirt.pivot     = new Vector2(0.5f, 0.5f);
+        ahirt.sizeDelta = new Vector2(20f, 20f);
+        ahirt.anchoredPosition = Vector2.zero;
+        var ahImg = ahImgGo.GetComponent<Image>();
+        ahImg.preserveAspect = true;
+        ahImg.raycastTarget  = false;
+        // The station nav bar's refinery tab uses the 'leadership' sprite (a
+        // dome glyph) tinted warm; mirror that here. It's greyscale, so the
+        // tint colourises it.
+        // TODO(post-beta): replace once the game ships a final/dedicated refinery
+        // icon — 'leadership' is a borrowed sprite and the tint below is an
+        // eyeballed match, not the real Image.color.
+        var ahSprite = SpriteLookup.FindByName("leadership");
+        if (ahSprite != null) { ahImg.sprite = ahSprite; ahImg.color = new Color(0.85f, 0.45f, 0.20f); }
+        else                  { ahImg.color  = new Color(0.3f, 0.3f, 0.3f, 0.6f); }
 
         foreach (var id in materialIds)
         {
@@ -590,6 +629,36 @@ internal sealed class StationStorageWindow : MonoBehaviour
                             : "-";
         jtxt.fontSize  = 12f;
         jtxt.alignment = TextAlignmentOptions.MidlineRight;
+
+        // Auto-refine indicator: vanilla checkbox sprite (checked = on,
+        // unchecked = off). Left blank when the station has no refinery.
+        var autoGo = new GameObject("AutoRefine",
+            typeof(RectTransform), typeof(LayoutElement));
+        autoGo.transform.SetParent(rowGo.transform, worldPositionStays: false);
+        var autoLE = autoGo.GetComponent<LayoutElement>();
+        autoLE.preferredWidth = AutoRefineCellWidth;
+        autoLE.flexibleWidth  = 0f;
+
+        if (snapshot.AutoRefine is bool autoOn)
+        {
+            var glyphGo = new GameObject("Checkbox",
+                typeof(RectTransform), typeof(Image));
+            var grt = (RectTransform)glyphGo.transform;
+            grt.SetParent(autoGo.transform, worldPositionStays: false);
+            grt.anchorMin = new Vector2(0.5f, 0.5f);
+            grt.anchorMax = new Vector2(0.5f, 0.5f);
+            grt.pivot     = new Vector2(0.5f, 0.5f);
+            grt.sizeDelta = new Vector2(16f, 16f);
+            grt.anchoredPosition = Vector2.zero;
+            var glyphImg = glyphGo.GetComponent<Image>();
+            glyphImg.preserveAspect = true;
+            glyphImg.raycastTarget  = false;
+            var cbSprite = SpriteLookup.FindByName(autoOn ? "Checkbox_1" : "Checkbox_0");
+            if (cbSprite != null) { glyphImg.sprite = cbSprite; glyphImg.color = Color.white; }
+            // Fallback if the sprite isn't loaded: a tinted square still reads
+            // as on (green) vs off (grey).
+            else { glyphImg.color = autoOn ? new Color(0.4f, 0.8f, 0.4f) : new Color(0.45f, 0.45f, 0.45f); }
+        }
 
         for (int i = 0; i < materialIds.Count; i++)
         {

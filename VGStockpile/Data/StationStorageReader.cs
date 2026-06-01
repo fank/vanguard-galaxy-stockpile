@@ -38,7 +38,8 @@ internal sealed class StationStorageReader
                 SystemGuid:  st.system?.guid ?? "",
                 SystemName:  st.system?.name ?? "",
                 FactionId:   st.faction?.identifier ?? "",
-                Items:       items));
+                Items:       items,
+                AutoRefine:  st.refinery?.autoRefine));
         }
 
         return result;

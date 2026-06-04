@@ -463,8 +463,15 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         TryResolveRefineryIcon();   // "Refinery" sprite may load after header build
 
+        // Detach before Destroy: Destroy is deferred to end-of-frame, so the
+        // doomed rows would otherwise still be counted by the immediate layout
+        // pass in Refresh() (Canvas.ForceUpdateCanvases) and skew scroll restore.
         for (int i = _gridContent.childCount - 1; i >= 0; i--)
-            Destroy(_gridContent.GetChild(i).gameObject);
+        {
+            var child = _gridContent.GetChild(i).gameObject;
+            child.transform.SetParent(null, false);
+            Destroy(child);
+        }
 
         var grid = _builder.Build(_currentSnapshots, _active, _showEmptyRefineries);
 

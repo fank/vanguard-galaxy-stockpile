@@ -338,7 +338,10 @@ public class Plugin : BaseUnityPlugin
 
     private void RefreshWindowIfOpen()
     {
-        if (_window is null || !_window.IsOpen) return;
+        // Unity overloads ==, so this also catches a window destroyed on a scene
+        // change that a stale reference would let slip past `is null` (then
+        // _window.IsOpen would throw MissingReferenceException).
+        if (_window == null || !_window.IsOpen) return;
         try { _window.Refresh(Reader.CaptureAll()); }
         catch (System.Exception ex)
         {

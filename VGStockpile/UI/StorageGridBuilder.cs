@@ -12,7 +12,8 @@ internal sealed class StorageGridBuilder
 
     public GridResult Build(
         IReadOnlyList<StationStorageSnapshot> snapshots,
-        ISet<MaterialCategory> visibleCategories)
+        ISet<MaterialCategory> visibleCategories,
+        bool showEmptyRefineries = false)
     {
         // Column order matches vanilla Inventory.SortByCategory:
         //   orderby itemCategory, gameplayType, name
@@ -43,8 +44,11 @@ internal sealed class StorageGridBuilder
                 return (Row: new GridRow(s, cells), Total: visibleTotal);
             })
             // Drop rows whose visible total is 0 — happens when the only
-            // materials a station holds are filtered out.
-            .Where(t => t.Total > 0)
+            // materials a station holds are filtered out. Exception: when the
+            // caller asks to show empty refineries (as push targets), keep rows
+            // for any station that has a refinery (AutoRefine != null).
+            .Where(t => t.Total > 0
+                || (showEmptyRefineries && t.Row.Snapshot.AutoRefine != null))
             .OrderByDescending(t => t.Total)
             .ThenBy(t => t.Row.Snapshot.StationName, System.StringComparer.OrdinalIgnoreCase)
             .Select(t => t.Row)

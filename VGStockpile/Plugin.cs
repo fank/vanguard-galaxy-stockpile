@@ -233,11 +233,7 @@ public class Plugin : BaseUnityPlugin
             // prior in-flight transfer reserved it — and the user would pick
             // amounts that CommitTransfer then clamps and refuses. Falls back to
             // empty (not the stale snapshot) when the source now reads empty.
-            StationStorageSnapshot? sourceSnap = null;
-            foreach (var s in allSnaps)
-            {
-                if (s.StationId == snap.StationId) { sourceSnap = s; break; }
-            }
+            var sourceSnap = allSnaps.FirstOrDefault(s => s.StationId == snap.StationId);
             sourceStock  = sourceSnap?.Items ?? new Dictionary<string, int>();
             jumpDistance = ComputeJumpDistance(snap.SystemGuid, current?.system?.guid);
         }

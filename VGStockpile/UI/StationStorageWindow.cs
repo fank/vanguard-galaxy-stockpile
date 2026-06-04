@@ -41,6 +41,13 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private readonly HashSet<MaterialCategory> _active = new();
     private readonly Dictionary<MaterialCategory, Image> _categoryButtons = new();
 
+    // "Show empty refineries" row-filter toggle (independent of the category
+    // column filters). _scroll is kept so Refresh() can preserve scroll position.
+    private bool _showEmptyRefineries;
+    private Action<bool>? _onShowEmptyRefineriesChanged;
+    private Image? _refineryToggleBg;
+    private ScrollRect? _scroll;
+
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
         Array.Empty<StationStorageSnapshot>();
     private IReadOnlyDictionary<string, int> _jumpDistances =
@@ -65,7 +72,9 @@ internal sealed class StationStorageWindow : MonoBehaviour
         Func<IReadOnlyTransferList>? getPending = null,
         Func<string, bool>? onCancelTransfer = null,
         Action<string>? onLocateByGuid = null,
-        Func<string, string>? stationDisplayNameByGuid = null)
+        Func<string, string>? stationDisplayNameByGuid = null,
+        Func<bool>? initialShowEmptyRefineries = null,
+        Action<bool>? onShowEmptyRefineriesChanged = null)
     {
         var go = new GameObject(
             "VGStockpile.Window",
@@ -89,6 +98,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
         w._onCancelTransfer        = onCancelTransfer;
         w._onLocateByGuid          = onLocateByGuid;
         w._stationDisplayNameByGuid = stationDisplayNameByGuid;
+        w._showEmptyRefineries          = initialShowEmptyRefineries?.Invoke() ?? false;
+        w._onShowEmptyRefineriesChanged = onShowEmptyRefineriesChanged;
         foreach (var c in initialActive()) w._active.Add(c);
         w.BuildLayout();
         w.Hide();
@@ -109,6 +120,30 @@ internal sealed class StationStorageWindow : MonoBehaviour
     {
         if (gameObject.activeSelf) Hide();
         else Show(snapshots);
+    }
+
+    public bool IsOpen => gameObject.activeSelf;
+
+    // Re-render an already-open window with fresh data, preserving scroll
+    // position. Used after a transfer changes station storage so the grid does
+    // not show stale rows until the user reopens it.
+    public void Refresh(IReadOnlyList<StationStorageSnapshot> snapshots)
+    {
+        if (!gameObject.activeSelf) return;
+        _currentSnapshots = snapshots;
+        _jumpDistances    = JumpDistances.ComputeFromCurrent();
+
+        var h = _scroll != null ? _scroll.horizontalNormalizedPosition : 0f;
+        var v = _scroll != null ? _scroll.verticalNormalizedPosition   : 1f;
+        Render();
+        if (_scroll != null)
+        {
+            // Content was rebuilt; force a layout pass before restoring the
+            // normalized scroll position or it clamps against a stale size.
+            Canvas.ForceUpdateCanvases();
+            _scroll.horizontalNormalizedPosition = h;
+            _scroll.verticalNormalizedPosition   = v;
+        }
     }
 
     private void Update()
@@ -197,8 +232,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
         strt.anchorMin = new Vector2(1f, 0.5f);
         strt.anchorMax = new Vector2(1f, 0.5f);
         strt.pivot     = new Vector2(1f, 0.5f);
-        // Width grows with the number of buttons (6 × 30 + 5 × 6 spacing = 210).
-        strt.sizeDelta = new Vector2(260f, 32f);
+        // Fits the refinery toggle + a 10px gap + 6 category buttons, with slack.
+        strt.sizeDelta = new Vector2(300f, 32f);
         strt.anchoredPosition = new Vector2(-64f, 0f);
         var hlg = stripGo.GetComponent<HorizontalLayoutGroup>();
         hlg.spacing = 6f;
@@ -206,6 +241,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         hlg.childForceExpandWidth  = false;
         hlg.childForceExpandHeight = false;
         _filterStrip = strt;
+        BuildRefineryToggle();   // leftmost in the right-aligned cluster
         BuildCategoryButtons();
 
         var closeGo = new GameObject("Close",
@@ -286,6 +322,60 @@ internal sealed class StationStorageWindow : MonoBehaviour
         Render();
     }
 
+    private void BuildRefineryToggle()
+    {
+        var btnGo = new GameObject("Filter_Refineries",
+            typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+        btnGo.transform.SetParent(_filterStrip, worldPositionStays: false);
+        var le = btnGo.GetComponent<LayoutElement>();
+        le.preferredWidth  = 30f;
+        le.preferredHeight = 30f;
+        le.flexibleWidth   = 0f;
+
+        var bg = btnGo.GetComponent<Image>();
+        bg.color = _showEmptyRefineries ? BtnActive : BtnInactive;
+        _refineryToggleBg = bg;
+
+        btnGo.GetComponent<Button>().onClick.AddListener(OnRefineryToggleClicked);
+
+        var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+        var irt = (RectTransform)iconGo.transform;
+        irt.SetParent(btnGo.transform, worldPositionStays: false);
+        irt.anchorMin = Vector2.zero; irt.anchorMax = Vector2.one;
+        irt.offsetMin = new Vector2(3f, 3f);
+        irt.offsetMax = new Vector2(-3f, -3f);
+        var iconImg = iconGo.GetComponent<Image>();
+        iconImg.preserveAspect = true;
+        iconImg.raycastTarget  = false;
+        // Same borrowed 'leadership' glyph the Auto-Refine column header uses.
+        var sprite = SpriteLookup.FindByName("leadership");
+        if (sprite != null) { iconImg.sprite = sprite; iconImg.color = new Color(0.85f, 0.45f, 0.20f); }
+        else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }
+
+        var tip = btnGo.AddComponent<TooltipSource>();
+        tip.Title    = "Show empty refineries";
+        tip.BodyText = "Also list stations that have a refinery even when they hold no " +
+                       "materials, so you can push ore to them. Off by default.";
+
+        // Small gap so this row-filter reads as separate from the category
+        // column-filter chips that follow it.
+        var spacerGo = new GameObject("FilterSpacer",
+            typeof(RectTransform), typeof(LayoutElement));
+        spacerGo.transform.SetParent(_filterStrip, worldPositionStays: false);
+        var spLe = spacerGo.GetComponent<LayoutElement>();
+        spLe.preferredWidth = 10f;
+        spLe.flexibleWidth  = 0f;
+    }
+
+    private void OnRefineryToggleClicked()
+    {
+        _showEmptyRefineries = !_showEmptyRefineries;
+        if (_refineryToggleBg != null)
+            _refineryToggleBg.color = _showEmptyRefineries ? BtnActive : BtnInactive;
+        _onShowEmptyRefineriesChanged?.Invoke(_showEmptyRefineries);
+        Render();
+    }
+
     private void BuildGrid()
     {
         var scroll = new GameObject("Scroll",
@@ -332,6 +422,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         sr.content    = crt;
         sr.horizontal = true;
         sr.vertical   = true;
+        _scroll       = sr;
 
         _gridContent = crt;
     }
@@ -356,7 +447,7 @@ internal sealed class StationStorageWindow : MonoBehaviour
         for (int i = _gridContent.childCount - 1; i >= 0; i--)
             Destroy(_gridContent.GetChild(i).gameObject);
 
-        var grid = _builder.Build(_currentSnapshots, _active);
+        var grid = _builder.Build(_currentSnapshots, _active, _showEmptyRefineries);
 
         if (grid.Rows.Count == 0)
         {

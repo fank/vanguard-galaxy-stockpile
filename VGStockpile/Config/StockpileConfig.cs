@@ -12,6 +12,7 @@ internal sealed class StockpileConfig
     public ConfigEntry<float>  IconRightPadding    { get; }
     public ConfigEntry<float>  IconTopPadding      { get; }
     public ConfigEntry<bool>   CloseWindowOnLocate { get; }
+    public ConfigEntry<bool>   ShowEmptyRefineries { get; }
 
     // [Transfers] section
     public ConfigEntry<bool>  TransfersEnabled       { get; }
@@ -57,6 +58,9 @@ internal sealed class StockpileConfig
             "Pixels of padding from the top edge of the screen for the HUD icon.");
         CloseWindowOnLocate = cfg.Bind("UI", "CloseWindowOnLocate", true,
             "When clicking a station label, close the stockpile window after focusing the map.");
+        ShowEmptyRefineries = cfg.Bind("UI", "ShowEmptyRefineries", false,
+            "Also list stations that have a refinery even when they hold no materials, " +
+            "so they can be used as push targets. Toggled by a header button. Off by default.");
 
         TransfersEnabled = cfg.Bind("Transfers", "Enabled", false,
             "Master gate. When false, VGStockpile is pure observer (default).");

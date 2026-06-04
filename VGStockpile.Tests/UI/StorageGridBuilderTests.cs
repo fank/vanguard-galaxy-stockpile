@@ -20,6 +20,18 @@ public class StorageGridBuilderTests
             FactionId:   faction,
             Items:       items.ToDictionary(i => i.mat, i => i.qty));
 
+    // A station that HAS a refinery (AutoRefine != null), auto on or off.
+    private static StationStorageSnapshot Refinery(
+        string id, string name, bool autoRefine, params (string mat, int qty)[] items)
+        => new(
+            StationId:   id,
+            StationName: name,
+            SystemGuid:  "sys-Sol",
+            SystemName:  "Sol",
+            FactionId:   "fac.a",
+            Items:       items.ToDictionary(i => i.mat, i => i.qty),
+            AutoRefine:  autoRefine);
+
     private static FakeMaterialCatalog DefaultCatalog() =>
         new FakeMaterialCatalog()
             .Add("ti", "Titanium", MaterialCategory.RefinedGoods)
@@ -215,5 +227,70 @@ public class StorageGridBuilderTests
             .Build(snaps, new HashSet<MaterialCategory> { MaterialCategory.TradeGoods });
         Assert.Single(tradeOnly.Rows);
         Assert.Equal("Cratery", tradeOnly.Rows[0].Snapshot.StationName);
+    }
+
+    [Fact]
+    public void Empty_Refinery_Kept_When_ShowEmptyRefineries_On()
+    {
+        var snaps = new[] { Refinery("r1", "RefineryA", autoRefine: true) };
+
+        var r = new StorageGridBuilder(DefaultCatalog())
+            .Build(snaps, All(), showEmptyRefineries: true);
+
+        Assert.Single(r.Rows);
+        Assert.Equal("RefineryA", r.Rows[0].Snapshot.StationName);
+        Assert.Empty(r.ColumnMaterialIds);   // no stock -> no material columns
+    }
+
+    [Fact]
+    public void Empty_Refinery_With_AutoRefine_Off_Also_Kept_When_Toggle_On()
+    {
+        // "All refinery stations" — a refinery counts whether auto is on or off.
+        var snaps = new[] { Refinery("r1", "RefineryOff", autoRefine: false) };
+
+        var r = new StorageGridBuilder(DefaultCatalog())
+            .Build(snaps, All(), showEmptyRefineries: true);
+
+        Assert.Single(r.Rows);
+        Assert.Equal("RefineryOff", r.Rows[0].Snapshot.StationName);
+    }
+
+    [Fact]
+    public void Empty_Refinery_Dropped_When_Toggle_Off()
+    {
+        var snaps = new[] { Refinery("r1", "RefineryA", autoRefine: true) };
+
+        var r = new StorageGridBuilder(DefaultCatalog()).Build(snaps, All());
+
+        Assert.Empty(r.Rows);
+    }
+
+    [Fact]
+    public void Empty_NonRefinery_Always_Dropped_Even_When_Toggle_On()
+    {
+        // No refinery (AutoRefine null) + no stock -> never shown, toggle or not.
+        var snaps = new[] { Snap("s1", "Barren", "Sol", "fac.a") };
+
+        var r = new StorageGridBuilder(DefaultCatalog())
+            .Build(snaps, All(), showEmptyRefineries: true);
+
+        Assert.Empty(r.Rows);
+    }
+
+    [Fact]
+    public void Empty_Refinery_Sorts_Below_Stocked_Stations_When_Toggle_On()
+    {
+        var snaps = new[]
+        {
+            Refinery("r1", "EmptyRef", autoRefine: true),
+            Snap("s1", "Stocked", "Sol", "fac.a", ("ti", 100)),
+        };
+
+        var r = new StorageGridBuilder(DefaultCatalog())
+            .Build(snaps, All(), showEmptyRefineries: true);
+
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal("Stocked",  r.Rows[0].Snapshot.StationName);   // total 100 first
+        Assert.Equal("EmptyRef", r.Rows[1].Snapshot.StationName);   // total 0 last
     }
 }

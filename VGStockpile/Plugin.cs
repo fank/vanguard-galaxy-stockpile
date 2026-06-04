@@ -82,6 +82,7 @@ public class Plugin : BaseUnityPlugin
                     var lines = string.Join(", ",
                         req.Manifest.Select(l => $"{l.Quantity} {l.ItemIdentifier}"));
                     Notifications.Toast($"Transfer complete at {dest}: {lines}.");
+                    RefreshWindowIfOpen();   // dest filled at Deliver
                 });
             Log.LogInfo("VGStockpile transfers enabled.");
         }
@@ -131,9 +132,11 @@ public class Plugin : BaseUnityPlugin
             onPullClick:      transfersEnabled ? snap => OpenTransferDialog(snap, TransferDirection.Pull)  : null,
             onPushClick:      transfersEnabled ? snap => OpenTransferDialog(snap, TransferDirection.Push) : null,
             getPending:               transfersEnabled ? () => _engine!.Pending : null,
-            onCancelTransfer:         transfersEnabled ? id  => _engine!.CancelTransfer(id) : null,
+            onCancelTransfer:         transfersEnabled ? id => CancelTransferAndRefresh(id) : null,
             onLocateByGuid:           transfersEnabled ? guid => Locator.LocateByGuid(guid) : null,
-            stationDisplayNameByGuid: transfersEnabled ? ResolveStationName : null);
+            stationDisplayNameByGuid: transfersEnabled ? ResolveStationName : null,
+            initialShowEmptyRefineries:   () => Cfg.ShowEmptyRefineries.Value,
+            onShowEmptyRefineriesChanged: v => Cfg.ShowEmptyRefineries.Value = v);
 
         _icon = StationStorageIcon.Create(
             hudCanvas,
@@ -186,8 +189,8 @@ public class Plugin : BaseUnityPlugin
     {
         if (string.IsNullOrEmpty(guid)) return guid;
 
-        // Walk all POIs directly — Reader.CaptureAll() filters out stations
-        // with empty material storage, so a reservation that drains a source
+        // Walk all POIs directly — Reader.CaptureAll() still drops empty
+        // non-refinery stations, so a reservation that drains such a source
         // would otherwise leave that station's name unresolved mid-flight.
         var data = GalaxyMapData.current;
         if (data is null) return guid;
@@ -310,6 +313,7 @@ public class Plugin : BaseUnityPlugin
             return new TransferDialogOutcome(false, msg);
         }
 
+        RefreshWindowIfOpen();   // source drained at Reserve — keep the open grid live
         return new TransferDialogOutcome(true, null);
     }
 
@@ -330,6 +334,23 @@ public class Plugin : BaseUnityPlugin
 
         var dists = JumpDistances.ComputeFrom(from);
         return dists.TryGetValue(toSystemGuid, out var d) ? d : 0;
+    }
+
+    private void RefreshWindowIfOpen()
+    {
+        if (_window is null || !_window.IsOpen) return;
+        try { _window.Refresh(Reader.CaptureAll()); }
+        catch (System.Exception ex)
+        {
+            Log.LogError($"Failed to refresh stockpile window: {ex}");
+        }
+    }
+
+    private bool CancelTransferAndRefresh(string id)
+    {
+        var ok = _engine!.CancelTransfer(id);
+        if (ok) RefreshWindowIfOpen();   // source restored at Return
+        return ok;
     }
 
     private void ToggleWindow()

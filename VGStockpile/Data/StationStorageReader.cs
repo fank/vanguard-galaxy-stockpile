@@ -30,7 +30,11 @@ internal sealed class StationStorageReader
             if (inv is null) continue;
 
             var items = ReadItems(inv);
-            if (items.Count == 0) continue;
+            // Keep stations that hold materials, plus empty stations that have a
+            // refinery — the grid can surface those as push targets (gated by the
+            // window's "show empty refineries" toggle). Truly empty non-refinery
+            // stations are still dropped.
+            if (items.Count == 0 && st.refinery is null) continue;
 
             result.Add(new StationStorageSnapshot(
                 StationId:   st.guid ?? "",

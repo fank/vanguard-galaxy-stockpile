@@ -226,7 +226,19 @@ public class Plugin : BaseUnityPlugin
         {
             fromName     = snap.StationName;
             toName       = currentName;
-            sourceStock  = snap.Items;
+
+            // Re-read live source stock (mirrors the Push branch below) instead
+            // of the row snapshot captured at window-open. Otherwise the dialog
+            // would still offer ore that has already left the station — e.g. a
+            // prior in-flight transfer reserved it — and the user would pick
+            // amounts that CommitTransfer then clamps and refuses. Falls back to
+            // empty (not the stale snapshot) when the source now reads empty.
+            StationStorageSnapshot? sourceSnap = null;
+            foreach (var s in allSnaps)
+            {
+                if (s.StationId == snap.StationId) { sourceSnap = s; break; }
+            }
+            sourceStock  = sourceSnap?.Items ?? new Dictionary<string, int>();
             jumpDistance = ComputeJumpDistance(snap.SystemGuid, current?.system?.guid);
         }
         else

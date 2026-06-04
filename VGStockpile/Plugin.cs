@@ -216,42 +216,26 @@ public class Plugin : BaseUnityPlugin
         }
 
         var allSnaps = Reader.CaptureAll();
-        string fromName, toName;
-        IReadOnlyDictionary<string, int> sourceStock;
-        int jumpDistance;
-
         var currentName = current.name ?? "";
 
+        // Source stock comes from the live snapshot list, never the clicked
+        // row's window-open snapshot — otherwise the dialog could offer ore an
+        // in-flight transfer has already taken (CommitTransfer would then clamp
+        // it and refuse). Resolved for both directions by TransferSourceStock.
+        var sourceStock = TransferSourceStock.Resolve(dir, snap, current?.guid, allSnaps);
+
+        string fromName, toName;
+        int jumpDistance;
         if (dir == TransferDirection.Pull)
         {
             fromName     = snap.StationName;
             toName       = currentName;
-
-            // Re-read live source stock (mirrors the Push branch below) instead
-            // of the row snapshot captured at window-open. Otherwise the dialog
-            // would still offer ore that has already left the station — e.g. a
-            // prior in-flight transfer reserved it — and the user would pick
-            // amounts that CommitTransfer then clamps and refuses. Falls back to
-            // empty (not the stale snapshot) when the source now reads empty.
-            var sourceSnap = allSnaps.FirstOrDefault(s => s.StationId == snap.StationId);
-            sourceStock  = sourceSnap?.Items ?? new Dictionary<string, int>();
             jumpDistance = ComputeJumpDistance(snap.SystemGuid, current?.system?.guid);
         }
         else
         {
-            fromName    = currentName;
-            toName      = snap.StationName;
-
-            StationStorageSnapshot? currentSnap = null;
-            var currentGuid = current?.guid;
-            if (currentGuid is not null)
-            {
-                foreach (var s in allSnaps)
-                {
-                    if (s.StationId == currentGuid) { currentSnap = s; break; }
-                }
-            }
-            sourceStock  = currentSnap?.Items ?? new Dictionary<string, int>();
+            fromName     = currentName;
+            toName       = snap.StationName;
             jumpDistance = ComputeJumpDistance(current?.system?.guid, snap.SystemGuid);
         }
 

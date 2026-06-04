@@ -46,6 +46,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
     private bool _showEmptyRefineries;
     private Action<bool>? _onShowEmptyRefineriesChanged;
     private Image? _refineryToggleBg;
+    private Image? _refineryToggleIcon;
+    private bool   _refineryIconResolved;
     private ScrollRect? _scroll;
 
     private IReadOnlyList<StationStorageSnapshot> _currentSnapshots =
@@ -347,10 +349,13 @@ internal sealed class StationStorageWindow : MonoBehaviour
         var iconImg = iconGo.GetComponent<Image>();
         iconImg.preserveAspect = true;
         iconImg.raycastTarget  = false;
-        // Same borrowed 'leadership' glyph the Auto-Refine column header uses.
-        var sprite = SpriteLookup.FindByName("leadership");
-        if (sprite != null) { iconImg.sprite = sprite; iconImg.color = new Color(0.85f, 0.45f, 0.20f); }
-        else                { iconImg.color  = new Color(0.5f, 0.5f, 0.5f, 0.6f); }
+        // Reuse the refinery-jobs window's icon (the game's "Refinery" sprite).
+        // That bundle loads a beat after the HUD, so the sprite can be null at
+        // header-build time — start transparent and re-resolve on each Render
+        // until it sticks, mirroring the refinery-jobs HUD icon's retry.
+        iconImg.color = new Color(1f, 1f, 1f, 0f);
+        _refineryToggleIcon = iconImg;
+        TryResolveRefineryIcon();
 
         var tip = btnGo.AddComponent<TooltipSource>();
         tip.Title    = "Show empty refineries";
@@ -374,6 +379,18 @@ internal sealed class StationStorageWindow : MonoBehaviour
             _refineryToggleBg.color = _showEmptyRefineries ? BtnActive : BtnInactive;
         _onShowEmptyRefineriesChanged?.Invoke(_showEmptyRefineries);
         Render();
+    }
+
+    // The toggle shares the refinery-jobs window's "Refinery" sprite, whose
+    // bundle loads shortly after the HUD; resolve lazily until it's available.
+    private void TryResolveRefineryIcon()
+    {
+        if (_refineryIconResolved || _refineryToggleIcon == null) return;
+        var sprite = SpriteLookup.FindByName("Refinery");
+        if (sprite == null) return;
+        _refineryToggleIcon.sprite = sprite;
+        _refineryToggleIcon.color  = Color.white;
+        _refineryIconResolved = true;
     }
 
     private void BuildGrid()
@@ -444,6 +461,8 @@ internal sealed class StationStorageWindow : MonoBehaviour
 
     private void Render()
     {
+        TryResolveRefineryIcon();   // "Refinery" sprite may load after header build
+
         for (int i = _gridContent.childCount - 1; i >= 0; i--)
             Destroy(_gridContent.GetChild(i).gameObject);
 

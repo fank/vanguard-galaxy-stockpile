@@ -144,7 +144,9 @@ internal sealed class TransferDialog : MonoBehaviour
         prt.anchorMin = new Vector2(0.5f, 0.5f);
         prt.anchorMax = new Vector2(0.5f, 0.5f);
         prt.pivot     = new Vector2(0.5f, 0.5f);
-        prt.sizeDelta = new Vector2(720f, 540f);
+        // 820 wide to fit the Total/ETA readouts plus Take all/Reset/Request
+        // buttons in the footer without crowding.
+        prt.sizeDelta = new Vector2(820f, 540f);
 
         panel.GetComponent<Image>().color = new Color(0.10f, 0.13f, 0.17f, 0.97f);
 
@@ -580,7 +582,15 @@ internal sealed class TransferDialog : MonoBehaviour
         spacer.transform.SetParent(footerGo.transform, worldPositionStays: false);
         spacer.GetComponent<LayoutElement>().flexibleWidth = 1f;
 
-        MakeButton(footerGo.transform, "Reset", 110f, () =>
+        // Select every row up to its available quantity in one click, then
+        // edit down before confirming. E.g. "evac the whole station" — works
+        // for both Pull (grab everything) and Push (send everything).
+        MakeButton(footerGo.transform, "Take all", 110f, () =>
+        {
+            foreach (var r in _rows) SetSelected(r, r.Available);
+        });
+
+        MakeButton(footerGo.transform, "Reset", 100f, () =>
         {
             foreach (var k in new List<string>(_selected.Keys)) _selected[k] = 0;
             foreach (var r in _rows) r.QtyTmp.text = $"0 / {r.Available}";

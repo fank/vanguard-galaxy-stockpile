@@ -25,7 +25,7 @@ public class Plugin : BaseUnityPlugin
 {
     public const string PluginGuid    = "vgstockpile";
     public const string PluginName    = "Vanguard Galaxy Stockpile";
-    public const string PluginVersion = "0.4.1";
+    public const string PluginVersion = "0.5.0";
 
     internal static Plugin          Instance { get; private set; } = null!;
     internal static ManualLogSource Log      { get; private set; } = null!;

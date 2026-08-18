@@ -15,7 +15,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
     <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.*" />
     <PackageReference Include="UnityEngine.Modules" Version="6000.2.6" />
     <PackageReference Include="BepInEx.BaseLib" Version="5.*" />
     <PackageReference Include="HarmonyX" Version="2.10.*" />

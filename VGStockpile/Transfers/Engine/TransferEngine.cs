@@ -5,7 +5,7 @@ using VGStockpile.Transfers.Persistence;
 
 namespace VGStockpile.Transfers.Engine;
 
-internal enum TransferError { None, InsufficientCredits, QueueFull, EmptyManifest, SessionUnavailable }
+internal enum TransferError { None, InsufficientCredits, QueueFull, EmptyManifest, SessionUnavailable, PersistenceUnavailable }
 
 internal readonly record struct TransferRequestResult(
     bool IsSuccess, TransferError Error, TransferRequest? Created);
@@ -17,6 +17,8 @@ internal sealed class TransferEngine
     private readonly ICreditsMutator _credits;
     private readonly TransferConfig _cfg;
     internal Func<bool>? OperationAllowed { get; set; }
+    internal Func<bool>? QueryAllowed { get; set; }
+    internal Func<TransferError>? UnavailableReason { get; set; }
     private bool CanOperate => OperationAllowed?.Invoke() != false;
     private readonly Func<string> _idGen;
 
@@ -32,13 +34,13 @@ internal sealed class TransferEngine
         _idGen = idGen ?? (() => Guid.NewGuid().ToString("N"));
     }
 
-    public IReadOnlyList<TransferRequest> Pending => CanOperate ? _queue.Items : Array.Empty<TransferRequest>();
+    public IReadOnlyList<TransferRequest> Pending => (QueryAllowed?.Invoke() ?? CanOperate) ? _queue.Items : Array.Empty<TransferRequest>();
 
     public TransferRequestResult RequestTransfer(
         string sourceGuid, string destGuid,
         IReadOnlyList<TransferManifestLine> manifest, int jumpDistance)
     {
-        if (!CanOperate) return new TransferRequestResult(false, TransferError.SessionUnavailable, null);
+        if (!CanOperate) return new TransferRequestResult(false, UnavailableReason?.Invoke() ?? TransferError.SessionUnavailable, null);
         manifest = manifest.ToArray();
         if (manifest.Count == 0)
             return new TransferRequestResult(false, TransferError.EmptyManifest, null);

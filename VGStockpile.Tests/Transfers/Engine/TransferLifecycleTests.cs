@@ -23,14 +23,14 @@ public sealed class TransferLifecycleTests : IDisposable
         _engine = new TransferEngine(new TransferQueue(0), _materials, _credits, TransferConfig.Defaults());
         _lifecycle = new TransferLifecycle(_api, _engine, _store, _ => { }, () => { }, _ => { });
     }
-    private void Ready(bool gameplay = true)
+    private void Ready(bool gameplay = true, string path = "source.save")
     {
         var id = Guid.NewGuid();
-        _api.Emit(new LifecycleEvent(LifecycleEventKind.SessionStarting, new SessionSnapshot(id, SessionPhase.Starting, SessionOrigin.SaveLoad, "source.save")));
-        _session = new SessionSnapshot(id, SessionPhase.PlayerReady, SessionOrigin.SaveLoad, "source.save");
+        _api.Emit(new LifecycleEvent(LifecycleEventKind.SessionStarting, new SessionSnapshot(id, SessionPhase.Starting, SessionOrigin.SaveLoad, path)));
+        _session = new SessionSnapshot(id, SessionPhase.PlayerReady, SessionOrigin.SaveLoad, path);
         _api.Emit(new LifecycleEvent(LifecycleEventKind.PlayerReady, _session));
         if (!gameplay) return;
-        _session = new SessionSnapshot(id, SessionPhase.GameplayInitialized, SessionOrigin.SaveLoad, "source.save");
+        _session = new SessionSnapshot(id, SessionPhase.GameplayInitialized, SessionOrigin.SaveLoad, path);
         _api.Emit(new LifecycleEvent(LifecycleEventKind.GameplayInitialized, _session));
     }
     private TransferRequest Request()
@@ -127,6 +127,59 @@ public sealed class TransferLifecycleTests : IDisposable
         _store.Fail = false; Finish(Start());
         Assert.Single(_engine.Tick(float.MaxValue));
     }
+    [Theory]
+    [InlineData("{ broken")]
+    [InlineData("{\"Version\":99,\"Items\":[]}")]
+    public void RealStoreRestoreRefusalDisablesAttemptAndPreservesFile(string json)
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
+        System.IO.Directory.CreateDirectory(root);
+        try
+        {
+            var path = System.IO.Path.Combine(root, "source.save");
+            var sidecar = SavePathResolver.Sidecar(path);
+            System.IO.File.WriteAllText(sidecar, json);
+            _lifecycle.Dispose();
+            using var lifecycle = new TransferLifecycle(_api, _engine, new JsonTransferStore(_ => { }), _ => { }, () => { }, _ => { });
+            Ready(path: path);
+            Assert.Equal(TransferError.PersistenceUnavailable, _engine.RequestTransfer("src", "dst", new[] { new TransferManifestLine("iron", 10) }, 0).Error);
+            Finish(Start(path), path: path);
+            Assert.Equal(100, _materials.Source); Assert.Equal(10000, _credits.Value);
+            Assert.Equal(json, System.IO.File.ReadAllText(sidecar));
+            Assert.Single(System.IO.Directory.GetFiles(root));
+        }
+        finally { System.IO.Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData("{ broken")]
+    [InlineData("{\"Version\":99,\"Items\":[]}")]
+    public void RealStoreWriteRefusalPausesVisibleQueueUntilCleanSaveAs(string json)
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString());
+        System.IO.Directory.CreateDirectory(root);
+        try
+        {
+            var path = System.IO.Path.Combine(root, "source.save");
+            _lifecycle.Dispose();
+            using var lifecycle = new TransferLifecycle(_api, _engine, new JsonTransferStore(_ => { }), _ => { }, () => { }, _ => { });
+            Ready(path: path); Request();
+            var sidecar = SavePathResolver.Sidecar(path);
+            System.IO.File.WriteAllText(sidecar, json);
+            Finish(Start(path), path: path);
+            Assert.Single(_engine.Pending);
+            Assert.Empty(_engine.Tick(float.MaxValue));
+            Assert.Equal(TransferError.PersistenceUnavailable, _engine.RequestTransfer("src", "dst", new[] { new TransferManifestLine("iron", 10) }, 0).Error);
+            Assert.Equal(json, System.IO.File.ReadAllText(sidecar));
+            var retry = System.IO.Path.Combine(root, "retry.save");
+            Finish(Start(retry), path: retry);
+            Assert.True(System.IO.File.Exists(SavePathResolver.Sidecar(retry)));
+            Assert.Single(_engine.Tick(float.MaxValue));
+            Assert.Equal(json, System.IO.File.ReadAllText(sidecar));
+        }
+        finally { System.IO.Directory.Delete(root, true); }
+    }
+
     [Fact]
     public void DisposalBlocksStaleCallbacksAndDriver()
     {

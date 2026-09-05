@@ -346,6 +346,7 @@ public class Plugin : BaseUnityPlugin
                 TransferError.InsufficientCredits => "Insufficient credits.",
                 TransferError.QueueFull           => "Transfer queue full.",
                 TransferError.EmptyManifest       => "Select at least one item.",
+                TransferError.PersistenceUnavailable => "Transfer persistence is unavailable. Check the log; retry saving after fixing write errors, or reload after repairing the sidecar.",
                 TransferError.SessionUnavailable  => "Transfers are unavailable during loading, saving or lifecycle callbacks.",
                 _                                 => "Could not queue transfer.",
             };

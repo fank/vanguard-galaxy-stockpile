@@ -20,6 +20,7 @@ internal sealed class TransferLifecycle : IDisposable
     private Guid? _ready;
     private bool _disposed;
     private bool _writeFault;
+    private bool _restoreFault;
 
     internal TransferLifecycle(ILifecycleApi api, TransferEngine? engine, ITransferStore store,
         Action<int> disabledPending, Action resetUi, Action<string> warn)
@@ -27,7 +28,12 @@ internal sealed class TransferLifecycle : IDisposable
         _api = api;
         _dispatch = (ILifecycleDispatchState)api;
         _engine = engine; _store = store; _disabledPending = disabledPending; _resetUi = resetUi; _warn = warn;
-        if (engine != null) engine.OperationAllowed = () => CanOperate;
+        if (engine != null)
+        {
+            engine.OperationAllowed = () => CanOperate;
+            engine.QueryAllowed = () => CanInspect;
+            engine.UnavailableReason = () => _writeFault || _restoreFault ? TransferError.PersistenceUnavailable : TransferError.SessionUnavailable;
+        }
         Clear();
         _subscription = api.Subscribe("vgstockpile.transfers", Observe);
         if (api.CurrentSession is { } current && IsCurrentReady(current.Id)) Restore(current);
@@ -38,7 +44,9 @@ internal sealed class TransferLifecycle : IDisposable
         && api.Capabilities.Any(c => c.Name == "session-lifecycle" && c.Available)
         && api.Capabilities.Any(c => c.Name == "save-outcomes" && c.Available);
 
-    internal bool CanOperate => !_disposed && !_writeFault && _ready.HasValue && _saves.Count == 0
+    internal bool CanOperate => CanInspect && !_writeFault;
+
+    private bool CanInspect => !_disposed && _ready.HasValue && _saves.Count == 0
         && !_dispatch.IsDispatchingCallbacks && _api.CurrentSession is { } current
         && current.Id == _ready && current.Phase == SessionPhase.GameplayInitialized;
 
@@ -47,7 +55,7 @@ internal sealed class TransferLifecycle : IDisposable
 
     private void Clear()
     {
-        _ready = null; _writeFault = false; _saves.Clear();
+        _ready = null; _writeFault = false; _restoreFault = false; _saves.Clear();
         _engine?.Restore(TransferSidecar.Empty());
         _resetUi();
     }
@@ -63,7 +71,12 @@ internal sealed class TransferLifecycle : IDisposable
             _ready = session.Id;
             if (_engine == null && state.Items.Count > 0) _disabledPending(state.Items.Count);
         }
-        catch (Exception ex) { _warn("Transfer restore failed; transfers disabled for this attempt: " + ex); }
+        catch (Exception ex)
+        {
+            if (!IsCurrentReady(session.Id)) return;
+            _restoreFault = true;
+            _warn("Transfer restore failed; transfers disabled for this attempt: " + ex);
+        }
     }
 
     private void Observe(LifecycleEvent e)
@@ -104,6 +117,7 @@ internal sealed class TransferLifecycle : IDisposable
         }
         catch (Exception ex)
         {
+            if (e.Session == null || _ready != e.Session.Id || !IsCurrentReady(e.Session.Id)) return;
             _writeFault = true;
             _warn("Transfer sidecar write failed after vanilla success; mutations paused until a successful save: " + ex);
         }

@@ -5,6 +5,7 @@ obj/
 .idea/
 *.suo
 dist/
-# Assembly-CSharp.dll is a publicized stub committed at VGStockpile/lib/ so
-# the GitHub Actions release workflow can compile against it without the
-# proprietary game runtime.
+# Owner-local reference inputs, never package or commit.
+VGStockpile/lib/*.dll
+.local-reference/
+__pycache__/

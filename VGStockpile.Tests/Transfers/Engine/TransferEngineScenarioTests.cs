@@ -28,14 +28,6 @@ public class TransferEngineScenarioTests
         }
     }
 
-    private sealed class FakeStore : ITransferStore
-    {
-        public TransferSidecar Last { get; private set; } = TransferSidecar.Empty();
-        public int Saves { get; private set; }
-        public TransferSidecar Load(string p) => Last;
-        public void Save(string p, TransferSidecar s) { Last = s; Saves++; }
-    }
-
     private static readonly TransferConfig Cfg = TransferConfig.Defaults() with
     {
         Enabled = true,
@@ -48,41 +40,39 @@ public class TransferEngineScenarioTests
     {
         var mutator = new FakeMutator();
         var credits = new FakeCredits();
-        var store = new FakeStore();
         var manifest = new List<TransferManifestLine> { new("iron", 100) };
 
         var engine = new TransferEngine(
             queue: new TransferQueue(maxConcurrent: 0),
-            mutator: mutator, credits: credits, store: store,
-            cfg: Cfg, savePath: "ignored",
+            mutator: mutator, credits: credits,
+            cfg: Cfg,
             idGen: () => "fixed-id");
 
         var result = engine.RequestTransfer("src", "dst", manifest, jumpDistance: 0);
         Assert.True(result.IsSuccess);
 
-        Assert.Single(mutator.Calls.Where(c => c.action == "Reserve" && c.station == "src"));
+        Assert.Single(mutator.Calls, c => c.action == "Reserve" && c.station == "src");
         Assert.Single(credits.Debits);
         Assert.Equal(200, credits.Debits[0]);
-        Assert.Equal(1, store.Saves);
+        Assert.Single(engine.Snapshot().Items);
 
         engine.Tick(10f);
         Assert.DoesNotContain(mutator.Calls, c => c.action == "Deliver");
 
         engine.Tick(25f);
         Assert.Contains(mutator.Calls, c => c.action == "Deliver" && c.station == "dst");
-        Assert.Equal(2, store.Saves);
+        Assert.Empty(engine.Snapshot().Items);
     }
 
     [Fact]
     public void Scenario_Cancel_TriggersReturnAndKeepsCreditsDebited()
     {
         var mutator = new FakeMutator(); var credits = new FakeCredits();
-        var store = new FakeStore();
         var manifest = new List<TransferManifestLine> { new("iron", 100) };
 
         var engine = new TransferEngine(
-            new TransferQueue(0), mutator, credits, store,
-            Cfg, "ignored", () => "id-1");
+            new TransferQueue(0), mutator, credits,
+            Cfg, () => "id-1");
 
         engine.RequestTransfer("src", "dst", manifest, 0);
         Assert.True(engine.CancelTransfer("id-1"));
@@ -96,15 +86,15 @@ public class TransferEngineScenarioTests
     {
         var mutator = new FakeMutator(); var credits = new FakeCredits();
         var engine = new TransferEngine(
-            new TransferQueue(0), mutator, credits, new FakeStore(),
-            Cfg, "ignored", () => "id-1");
+            new TransferQueue(0), mutator, credits,
+            Cfg, () => "id-1");
         engine.RequestTransfer("src", "dst",
             new List<TransferManifestLine> { new("iron", 1) }, 0);
 
         engine.Tick(60f);
         engine.Tick(60f);
 
-        Assert.Single(mutator.Calls.Where(c => c.action == "Deliver"));
+        Assert.Single(mutator.Calls, c => c.action == "Deliver");
     }
 
     [Fact]
@@ -113,8 +103,8 @@ public class TransferEngineScenarioTests
         var mutator = new FakeMutator();
         var credits = new FakeCredits { Current = 50 };
         var engine = new TransferEngine(
-            new TransferQueue(0), mutator, credits, new FakeStore(),
-            Cfg, "ignored", () => "id-1");
+            new TransferQueue(0), mutator, credits,
+            Cfg, () => "id-1");
 
         var result = engine.RequestTransfer("src", "dst",
             new List<TransferManifestLine> { new("iron", 1) }, 0);
@@ -130,8 +120,8 @@ public class TransferEngineScenarioTests
         var mutator = new FakeMutator(); var credits = new FakeCredits();
         var queue = new TransferQueue(maxConcurrent: 1);
         var engine = new TransferEngine(
-            queue, mutator, credits, new FakeStore(),
-            Cfg, "ignored", () => System.Guid.NewGuid().ToString("N"));
+            queue, mutator, credits,
+            Cfg, () => System.Guid.NewGuid().ToString("N"));
 
         // Fill the queue to capacity.
         var first = engine.RequestTransfer("src", "dst",

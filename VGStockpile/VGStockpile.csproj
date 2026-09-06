@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>VGStockpile</AssemblyName>
     <Product>Vanguard Galaxy Stockpile</Product>
-    <Version>0.4.0</Version>
+    <Version>0.6.0</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>VGStockpile</RootNamespace>
@@ -27,16 +27,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="VGModAPI.Abstractions">
+      <HintPath>lib/VGModAPI.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Assembly-CSharp" Condition="Exists('lib/Assembly-CSharp.dll')">
       <HintPath>lib/Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- UnityEngine.UI (Button, Image, layout groups) and TextMeshPro live in
-         separate assemblies from the UnityEngine.Modules NuGet meta-package, so
-         we have to reference them directly. Same publicize-and-commit pattern
-         that VGBlueprintPin uses — stubs carry signatures only, the game's real
-         runtime takes over in-game. Stubs themselves are committed (unlike
-         Assembly-CSharp.dll which is a symlink to VGTTS's canonical copy). -->
+    <!-- Owner-local UI references, compile-only and never tracked or packaged. -->
     <Reference Include="UnityEngine.UI">
       <HintPath>lib/UnityEngine.UI.dll</HintPath>
       <Private>false</Private>

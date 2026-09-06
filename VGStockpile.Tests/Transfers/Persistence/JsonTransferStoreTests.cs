@@ -26,14 +26,36 @@ public class JsonTransferStoreTests : System.IDisposable
     }
 
     [Fact]
-    public void Load_MalformedJson_ReturnsEmptyAndLogsWarning()
+    public void Load_MalformedJson_ThrowsAndLogsWarning()
     {
         File.WriteAllText(Path1, "{ not valid json");
         string? warned = null;
         var store = new JsonTransferStore(msg => warned = msg);
-        var loaded = store.Load(Path1);
-        Assert.Empty(loaded.Items);
+        Assert.ThrowsAny<Newtonsoft.Json.JsonException>(() => store.Load(Path1));
         Assert.NotNull(warned);
+    }
+
+    [Fact]
+    public void EmptySnapshotOnlyWritesWhenDestinationAlreadyExists()
+    {
+        var store = new JsonTransferStore(_ => { });
+        store.Save(Path1, TransferSidecar.Empty());
+        Assert.False(File.Exists(Path1));
+        File.WriteAllText(Path1, "{\"Version\":1,\"Items\":[]}");
+        store.Save(Path1, TransferSidecar.Empty());
+        Assert.Empty(store.Load(Path1).Items);
+    }
+
+    [Theory]
+    [InlineData("{ broken")]
+    [InlineData("null")]
+    [InlineData("{\"Version\":1,\"Items\":null}")]
+    public void InvalidExistingDataCannotBeOverwritten(string text)
+    {
+        File.WriteAllText(Path1, text);
+        var store = new JsonTransferStore(_ => { });
+        Assert.ThrowsAny<Newtonsoft.Json.JsonException>(() => store.Save(Path1, TransferSidecar.Empty()));
+        Assert.Equal(text, File.ReadAllText(Path1));
     }
 
     [Fact]
@@ -68,11 +90,8 @@ public class JsonTransferStoreTests : System.IDisposable
     public void Save_RefusesToOverwriteHigherVersion()
     {
         File.WriteAllText(Path1, "{\"Version\":99,\"Items\":[]}");
-        string? warned = null;
-        var store = new JsonTransferStore(msg => warned = msg);
-        var older = new TransferSidecar(1, new List<TransferRequest>());
-        store.Save(Path1, older);
+        var store = new JsonTransferStore(_ => { });
+        Assert.Throws<InvalidDataException>(() => store.Save(Path1, TransferSidecar.Empty()));
         Assert.Contains("\"Version\":99", File.ReadAllText(Path1));
-        Assert.NotNull(warned);
     }
 }

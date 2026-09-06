@@ -1,8 +1,8 @@
 # VGStockpile — Galaxy-wide station stockpile overview for Vanguard Galaxy
 
-![Stockpile window](docs/screenshots/stockpile-window.jpg)
+![Stockpile window](https://raw.githubusercontent.com/fankserver/vanguard-galaxy-stockpile/main/docs/screenshots/stockpile-window.jpg)
 
-A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single window showing every station's stored materials in one grid. Stations as rows, materials as columns. Pure observer — VGStockpile never modifies a save file.
+A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single window showing every station's stored materials in one grid. Stations as rows, materials as columns. The overview is read-only; optional transfers reserve/move materials, debit credits and persist a pending-job sidecar.
 
 ## Features
 
@@ -11,13 +11,15 @@ A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single windo
 - **Category filters.** Six toggle buttons in the header — Ores, Refined Canisters, Refined Products, Crystals, Trade Goods, Salvage. Click to hide / show. State persists across sessions.
 - **Vanilla item tooltips on hover.** Header icons and quantity cells use `ItemTooltipSource`, the same tooltip component vanilla inventory slots use.
 - **Click a station label to "Locate"** — opens the galaxy map and focuses the station, mirroring the mission UI's Locate button (calls `SidePanel.OpenMapAndFocusPoi`).
-- **Live read on open.** No persisted sidecar, no Harmony patches that mutate behavior. Reopening the window refreshes data.
+- **Live read on open.** Reopening the overview refreshes station data.
+- **Optional transfers.** Pending jobs persist alongside successful vanilla saves; transfer operations do not independently write ahead of the saved inventory/credits.
 
 ## Install
 
 1. Install BepInEx 5.x in your Vanguard Galaxy folder.
-2. Drop the `VGStockpile/` folder from the release zip into `BepInEx/plugins/`.
-3. Launch the game.
+2. Install [VGModAPI 0.1.1+ within 0.1.x](https://github.com/fankserver/vanguard-galaxy-api). Keep one canonical API copy; do not duplicate its Abstractions DLL in consumer folders.
+3. Drop the `VGStockpile/` folder from the release zip into `BepInEx/plugins/`, including Newtonsoft.Json and notices.
+4. Launch the game. Missing/unsupported API or unavailable lifecycle/save capabilities disable Stockpile before sidecar operations.
 
 ## Configuration
 
@@ -28,14 +30,17 @@ A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single windo
 | `UI.ActiveCategories` | `RefinedCanister,RefinedGoods,Crystal,TradeGoods,Salvage,Other` | Comma-separated list of visible categories. Toggling a filter button updates this. |
 | `UI.IconRightPadding` / `UI.IconTopPadding` | `128` / `12` | HUD icon position from the top-right corner. |
 | `UI.CloseWindowOnLocate` | `true` | Auto-close the window when a station label is clicked. |
+| `Transfers.Enabled` | `false` | Enable inventory/credit-changing transfers. |
 
 ## Build (for contributors)
 
-The repository ships as a sibling of the other Vanguard Galaxy plugins. Make sure `vanguard-galaxy-tts/VGTTS/lib/Assembly-CSharp.dll` exists (the publicized stub all sibling plugins compile against).
+Build the sibling API Release package first (or set `VGAPI_DLL`). Game/Unity metadata stays owner-local; it is no longer tracked. Public CI validates archive layout only and never builds with game assets.
 
 ```sh
-make build      # links libs, compiles VGStockpile.dll
-make test       # 29 xUnit tests on the pure-logic layers
+make refresh-asm # current owner-installed game; requires assembly-publicizer
+make build
+make test
+make package CONFIG=Release # inspect and attach dist/VGStockpile.zip to a release
 make deploy     # copies into <GAME_DIR>/BepInEx/plugins/VGStockpile/
 ```
 
@@ -49,7 +54,13 @@ Three internal areas:
 - **`UI/`** — UGUI rendering. `StorageGridBuilder` (pure, unit-tested) computes columns + sorted rows. `StationStorageWindow` and `StationStorageIcon` are the Unity-touching layer.
 - **`Locate/`** — `IStationLocator` + production `StationLocator` that invokes vanilla's `SidePanel.OpenMapAndFocusPoi` coroutine via reflection (publicized stub vs runtime privacy).
 
-29 tests cover the pure-logic units — `CompactNumber`, `MaterialCatalog` semantics, `StorageGridBuilder` sort/filter rules, and the click-to-locate handler. Unity-touching code (icon, window, reader, production locator) is verified manually in-game.
+## Transfer lifecycle boundaries
+
+Queue restoration waits for PlayerReady; mutations/ticks wait for the matching GameplayInitialized session and run outside API callback delivery or in-flight saves. Session replacement clears pending memory without returning old-world inventory into a new world. HUD attachment still uses SidePanel.Start—not a global readiness guess.
+
+SaveStarted captures the queue without changing vanilla data; only its matching SaveSucceeded writes that snapshot to the reported destination. It is after vanilla's caller snapshot construction, not a pre-serialization hook. Failed/skipped saves leave sidecars unchanged. Sidecar write failures pause mutations (jobs stay visible) until a later successful save retries persistence. Corrupt, unreadable or newer-version sidecars disable restoration for that attempt and are never intentionally overwritten. Empty queues do not create new sidecars. There is no cross-file transaction or rollback guarantee. Unsaved transfer progress is lost with unsaved vanilla changes.
+
+Schema is unchanged. With transfers disabled, pending-job warnings wait for an actual HUD. Tests cover pure overview/transfer logic and lifecycle guards. Controlled native coverage includes save/reload, real transfer inventory/credit changes, journal coexistence, refusal and teardown. Full owner acceptance remains separate; API RuntimeQualified remains false.
 
 ## License
 

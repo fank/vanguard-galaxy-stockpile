@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Newtonsoft.Json;
 
 namespace VGStockpile.Transfers.Persistence;
@@ -7,58 +8,39 @@ namespace VGStockpile.Transfers.Persistence;
 internal sealed class JsonTransferStore : ITransferStore
 {
     private readonly Action<string> _logWarning;
-
     public JsonTransferStore(Action<string> logWarning) { _logWarning = logWarning; }
+
+    private static TransferSidecar? ReadExisting(string path)
+    {
+        string json;
+        try { json = File.ReadAllText(path); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
+        var state = JsonConvert.DeserializeObject<TransferSidecar>(json);
+        if (state == null || state.Items == null || state.Items.Any(item => item == null || item.Manifest == null))
+            throw new JsonSerializationException("Invalid transfer sidecar structure.");
+        if (state.Version > TransferSidecar.CurrentVersion)
+            throw new InvalidDataException($"Unsupported transfer sidecar version {state.Version}; preserving file.");
+        return state;
+    }
 
     public TransferSidecar Load(string savePath)
     {
-        if (!File.Exists(savePath)) return TransferSidecar.Empty();
-        try
-        {
-            var json = File.ReadAllText(savePath);
-            var loaded = JsonConvert.DeserializeObject<TransferSidecar>(json);
-            if (loaded is null)
-            {
-                _logWarning($"Sidecar at {savePath} deserialized to null; treating as empty.");
-                return TransferSidecar.Empty();
-            }
-            if (loaded.Version > TransferSidecar.CurrentVersion)
-            {
-                _logWarning($"Sidecar at {savePath} has newer version {loaded.Version} > " +
-                            $"{TransferSidecar.CurrentVersion}; treating as empty (will not overwrite).");
-                return TransferSidecar.Empty();
-            }
-            return loaded;
-        }
+        try { return ReadExisting(savePath) ?? TransferSidecar.Empty(); }
         catch (Exception ex)
         {
             _logWarning($"Failed to read sidecar at {savePath}: {ex.Message}");
-            return TransferSidecar.Empty();
+            throw;
         }
     }
 
     public void Save(string savePath, TransferSidecar sidecar)
     {
-        if (File.Exists(savePath))
-        {
-            try
-            {
-                var existing = JsonConvert.DeserializeObject<TransferSidecar>(File.ReadAllText(savePath));
-                if (existing is { Version: > TransferSidecar.CurrentVersion })
-                {
-                    _logWarning($"Refusing to overwrite newer sidecar (v{existing.Version}) at {savePath}.");
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logWarning($"Could not parse existing sidecar at {savePath} for version check: {ex.Message}. Will overwrite.");
-            }
-        }
-
+        // Refuse unreadable/corrupt/future files, including destinations changed since restore.
+        var existing = ReadExisting(savePath);
+        if (existing == null && sidecar.Items.Count == 0) return;
         var dir = Path.GetDirectoryName(savePath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var json = JsonConvert.SerializeObject(sidecar, Formatting.Indented);
         var tmp = savePath + ".tmp";
         File.WriteAllText(tmp, json);

@@ -24,6 +24,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VGStockpile\VGStockpile.csproj" />
+    <Reference Include="VGModAPI.Abstractions">
+      <HintPath>../VGStockpile/lib/VGModAPI.Abstractions.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using BepInEx;
 using BepInEx.Logging;
+using BepInEx.Bootstrap;
+using VGModAPI;
 using HarmonyLib;
 using Source.Galaxy;
 using Source.Galaxy.POI;
@@ -21,11 +23,12 @@ namespace VGStockpile;
 
 [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
 [BepInProcess("VanguardGalaxy.exe")]
+[BepInDependency(ModApi.PluginId, "0.1.1")]
 public class Plugin : BaseUnityPlugin
 {
     public const string PluginGuid    = "vgstockpile";
     public const string PluginName    = "Vanguard Galaxy Stockpile";
-    public const string PluginVersion = "0.5.0";
+    public const string PluginVersion = "0.6.0";
 
     internal static Plugin          Instance { get; private set; } = null!;
     internal static ManualLogSource Log      { get; private set; } = null!;
@@ -50,6 +53,10 @@ public class Plugin : BaseUnityPlugin
     internal CreditsMutator?          _credits;
     internal StationContextAdapter?   _ctxAdapter;
 
+    private TransferLifecycle? _lifecycle;
+    private TransferEngineDriver? _driver;
+    private int _pendingWarning;
+
     public bool IconAttached => _icon != null;
 
     private void Awake()
@@ -65,45 +72,76 @@ public class Plugin : BaseUnityPlugin
         RefineryReader  = new RefineryJobReader(Log);
         RefineryBuilder = new RefineryJobsBuilder(Catalog);
 
-        if (Cfg.TransfersEnabled.Value)
+        var api = ModApi.Current;
+        if (!Chainloader.PluginInfos.TryGetValue(ModApi.PluginId, out var apiPlugin)
+            || !TransferLifecycle.IsCompatible(apiPlugin.Metadata.Version, api))
         {
-            var tcfg     = Cfg.ToTransferConfig();
-            _mutator     = new MaterialStorageMutator(Log);
-            _credits     = new CreditsMutator(Log);
-            _ctxAdapter  = new StationContextAdapter(Log);
-            var queue    = new TransferQueue(tcfg.MaxConcurrent);
-            var store    = new JsonTransferStore(msg => Log.LogWarning(msg));
-            _engine      = new TransferEngine(
-                queue, _mutator, _credits, store, tcfg, savePath: "");
-            TransferEngineDriver.Attach(gameObject, _engine,
-                onCompleted: req =>
-                {
-                    var dest  = ResolveStationName(req.DestStationGuid);
-                    var lines = string.Join(", ",
-                        req.Manifest.Select(l => $"{l.Quantity} {l.ItemIdentifier}"));
-                    Notifications.Toast($"Transfer complete at {dest}: {lines}.");
-                    RefreshWindowIfOpen();   // dest filled at Deliver
-                });
-            Log.LogInfo("VGStockpile transfers enabled.");
+            enabled = false;
+            Log.LogError("Requires VGModAPI 0.1.1+ within 0.1.x with lifecycle/save capabilities; Stockpile disabled without touching sidecars.");
+            return;
         }
-
-        // Vanilla's HUD canvas + side menu come up at unpredictable times
-        // (depending on how long the user lingers in the main menu before
-        // loading a save). Patch SidePanel.Start as the trigger — it runs
-        // exactly once per gameplay-scene load, after the side menu's
-        // canvas hierarchy is built, with no race or timeout.
-        _harmony = new Harmony(PluginGuid);
-        _harmony.PatchAll(typeof(SidePanelReadyPatch));
-        _harmony.PatchAll(typeof(SaveLoadPatch));   // unconditional — needed for §6.8 disable-mid-flight peek
-        if (_engine is not null)
+        try
         {
-            _harmony.PatchAll(typeof(SaveWritePatch));
-        }
+            var store = new JsonTransferStore(msg => Log.LogWarning(msg));
+            if (Cfg.TransfersEnabled.Value)
+            {
+                var tcfg = Cfg.ToTransferConfig();
+                _mutator = new MaterialStorageMutator(Log);
+                _credits = new CreditsMutator(Log);
+                _ctxAdapter = new StationContextAdapter(Log);
+                var queue = new TransferQueue(tcfg.MaxConcurrent);
+                _engine = new TransferEngine(queue, _mutator, _credits, tcfg) { OperationAllowed = () => false };
+                _driver = TransferEngineDriver.Attach(gameObject, _engine,
+                    onCompleted: req =>
+                    {
+                        var dest = ResolveStationName(req.DestStationGuid);
+                        var lines = string.Join(", ", req.Manifest.Select(l => $"{l.Quantity} {l.ItemIdentifier}"));
+                        Notifications.Toast($"Transfer complete at {dest}: {lines}.");
+                        RefreshWindowIfOpen();
+                    });
+                Log.LogInfo("VGStockpile transfers enabled.");
+            }
 
-        Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel.");
+            // HUD readiness remains tied to the inspected SidePanel.Start boundary.
+            _harmony = new Harmony(PluginGuid);
+            _harmony.PatchAll(typeof(SidePanelReadyPatch));
+            _lifecycle = new TransferLifecycle(api!, _engine, store, count => _pendingWarning = count,
+                ResetTransferUi, message => Log.LogWarning(message));
+            Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel. API remains experimental.");
+        }
+        catch (System.Exception error)
+        {
+            enabled = false;
+            OnDestroy();
+            Log.LogError($"Stockpile initialization failed: {error}");
+        }
     }
 
-    private void OnDestroy() => _harmony?.UnpatchSelf();
+    private void ResetTransferUi()
+    {
+        _pendingWarning = 0;
+        if (_window) _window.Hide();
+        if (_refineryWindow) _refineryWindow.Hide();
+    }
+
+    private void Update()
+    {
+        if (_pendingWarning <= 0 || !_icon || _lifecycle?.CanOperate != true) return;
+        var count = _pendingWarning;
+        _pendingWarning = 0;
+        Notifications.Toast($"VGStockpile transfers disabled — {count} pending transfers will not deliver until re-enabled.");
+    }
+
+    private void OnDestroy()
+    {
+        _lifecycle?.Dispose();
+        if (_driver) Destroy(_driver);
+        if (_window) Destroy(_window.gameObject);
+        if (_refineryWindow) Destroy(_refineryWindow.gameObject);
+        if (_icon) Destroy(_icon.gameObject);
+        if (_refineryIcon) Destroy(_refineryIcon.gameObject);
+        _harmony?.UnpatchSelf();
+    }
 
     internal void AttachIcon(Canvas hudCanvas)
     {
@@ -308,6 +346,8 @@ public class Plugin : BaseUnityPlugin
                 TransferError.InsufficientCredits => "Insufficient credits.",
                 TransferError.QueueFull           => "Transfer queue full.",
                 TransferError.EmptyManifest       => "Select at least one item.",
+                TransferError.PersistenceUnavailable => "Transfer persistence is unavailable. Check the log; retry saving after fixing write errors, or reload after repairing the sidecar.",
+                TransferError.SessionUnavailable  => "Transfers are unavailable during loading, saving or lifecycle callbacks.",
                 _                                 => "Could not queue transfer.",
             };
             return new TransferDialogOutcome(false, msg);
@@ -384,40 +424,4 @@ public class Plugin : BaseUnityPlugin
         }
     }
 
-    internal void OnSaveLoaded(string savePath)
-    {
-        var sidecarPath = Transfers.Persistence.SavePathResolver.Sidecar(savePath);
-
-        if (_engine is not null)
-        {
-            // Transfers are enabled: load and resume.
-            _engine.SetSavePath(sidecarPath);
-            _engine.LoadFromStore();
-            return;
-        }
-
-        // Transfers are disabled — peek the sidecar to honor spec §6.8.
-        try
-        {
-            var store = new Transfers.Persistence.JsonTransferStore(msg => Log.LogWarning(msg));
-            var sidecar = store.Load(sidecarPath);
-            if (sidecar.Items.Count > 0)
-            {
-                Notifications.Toast(
-                    $"VGStockpile transfers disabled — {sidecar.Items.Count} pending transfers will not deliver until re-enabled.");
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Log.LogWarning($"Disable-mid-flight check failed: {ex.Message}");
-        }
-    }
-
-    internal void OnSaveWritten(string savePath)
-    {
-        if (_engine is null) return;
-        var sidecarPath = Transfers.Persistence.SavePathResolver.Sidecar(savePath);
-        _engine.SetSavePath(sidecarPath);
-        _engine.FlushNow();
-    }
 }

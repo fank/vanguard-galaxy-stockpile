@@ -109,7 +109,7 @@ public class Plugin : BaseUnityPlugin
             var coordinated = Config.Bind("Persistence", "UseApiSaveData", true, "Use API-managed transfer saves. Experimental; disable to use legacy save files.").Value;
             var importLegacy = Config.Bind("Persistence", "ImportLegacySidecars", false, "Read existing transfer files when no API-managed transfer data exists. Sources remain untouched; matching the old queue to this game save is your choice.").Value;
             _lifecycle = coordinated
-                ? new CoordinatedTransfers(api!, ModApi.Persistence ?? throw new System.InvalidOperationException("API-managed saves unavailable; legacy saves are not selected automatically."), _engine, importLegacy,
+                ? new CoordinatedTransfers(api!, ModApi.Persistence ?? throw new System.InvalidOperationException("API-managed saves unavailable. Enable [Persistence] Enabled in vgmodapi.cfg and check API errors, or set [Persistence] UseApiSaveData = false in vgstockpile.cfg for legacy saves."), _engine, importLegacy,
                     count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message))
                 : new TransferLifecycle(api!, _engine, store, count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message));
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel. API remains experimental.");

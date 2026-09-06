@@ -6,7 +6,7 @@ using VGStockpile.Transfers.Engine;
 
 namespace VGStockpile.Transfers.Persistence;
 
-internal sealed class TransferLifecycle : IDisposable
+internal sealed class TransferLifecycle : ITransferPersistence
 {
     private readonly ILifecycleApi _api;
     private readonly ILifecycleDispatchState _dispatch;
@@ -40,11 +40,11 @@ internal sealed class TransferLifecycle : IDisposable
     }
 
     internal static bool IsCompatible(Version version, ILifecycleApi? api) => version.Major == 0 && version.Minor == 1
-        && version >= new Version(0, 1, 1) && api is ILifecycleDispatchState
+        && version >= new Version(0, 1, 2) && api is ILifecycleDispatchState
         && api.Capabilities.Any(c => c.Name == "session-lifecycle" && c.Available)
         && api.Capabilities.Any(c => c.Name == "save-outcomes" && c.Available);
 
-    internal bool CanOperate => CanInspect && !_writeFault;
+    public bool CanOperate => CanInspect && !_writeFault;
 
     private bool CanInspect => !_disposed && _ready.HasValue && _saves.Count == 0
         && !_dispatch.IsDispatchingCallbacks && _api.CurrentSession is { } current

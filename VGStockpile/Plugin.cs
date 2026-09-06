@@ -28,7 +28,7 @@ public class Plugin : BaseUnityPlugin
 {
     public const string PluginGuid    = "vgstockpile";
     public const string PluginName    = "Vanguard Galaxy Stockpile";
-    public const string PluginVersion = "0.7.0";
+    public const string PluginVersion = "0.7.1";
 
     internal static Plugin          Instance { get; private set; } = null!;
     internal static ManualLogSource Log      { get; private set; } = null!;
@@ -106,10 +106,10 @@ public class Plugin : BaseUnityPlugin
             // HUD readiness remains tied to the inspected SidePanel.Start boundary.
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll(typeof(SidePanelReadyPatch));
-            var coordinated = Config.Bind("Persistence", "UseCoordinatedPersistence", false, "Experimental; requires explicitly enabled VGModAPI persistence.").Value;
-            var importLegacy = Config.Bind("Persistence", "ImportLegacySidecars", false, "Explicit read-only adoption when this owner has no coordinated data; no historical snapshot consistency inferred.").Value;
+            var coordinated = Config.Bind("Persistence", "UseApiSaveData", true, "Use API-managed transfer saves. Experimental; disable to use legacy save files.").Value;
+            var importLegacy = Config.Bind("Persistence", "ImportLegacySidecars", false, "Read existing transfer files when no API-managed transfer data exists. Sources remain untouched; matching the old queue to this game save is your choice.").Value;
             _lifecycle = coordinated
-                ? new CoordinatedTransfers(api!, ModApi.Persistence ?? throw new System.InvalidOperationException("Coordinated persistence unavailable; no legacy fallback."), _engine, importLegacy,
+                ? new CoordinatedTransfers(api!, ModApi.Persistence ?? throw new System.InvalidOperationException("API-managed saves unavailable; legacy saves are not selected automatically."), _engine, importLegacy,
                     count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message))
                 : new TransferLifecycle(api!, _engine, store, count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message));
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel. API remains experimental.");
@@ -134,7 +134,7 @@ public class Plugin : BaseUnityPlugin
         if (_lifecycle is CoordinatedTransfers coordinated && coordinated.Status != _lastPersistenceStatus)
         {
             _lastPersistenceStatus = coordinated.Status;
-            Log.LogInfo("Coordinated transfer persistence status: " + _lastPersistenceStatus);
+            Log.LogInfo("Transfer save-data status: " + _lastPersistenceStatus);
         }
         if (_pendingWarning <= 0 || !_icon || _lifecycle?.CanOperate != true) return;
         var count = _pendingWarning;

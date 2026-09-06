@@ -13,12 +13,12 @@ internal static class TransferPayloadCodec
     internal static byte[] Encode(TransferSidecar state)
     {
         var bytes = Utf8.GetBytes(JsonConvert.SerializeObject(state, Formatting.Indented));
-        if (bytes.Length > MaxBytes) throw new InvalidDataException("Transfer payload exceeds coordinated limit.");
+        if (bytes.Length > MaxBytes) throw new InvalidDataException("Transfer payload exceeds API save-data size limit.");
         return bytes;
     }
     internal static TransferSidecar Decode(byte[] bytes)
     {
-        if (bytes.Length > MaxBytes) throw new InvalidDataException("Transfer payload exceeds coordinated limit.");
+        if (bytes.Length > MaxBytes) throw new InvalidDataException("Transfer payload exceeds API save-data size limit.");
         var state = JsonConvert.DeserializeObject<TransferSidecar>(Utf8.GetString(bytes));
         if (state == null || state.Items == null || state.Version < 0 || state.Version > TransferSidecar.CurrentVersion)
             throw new InvalidDataException("Invalid or unsupported transfer schema.");
@@ -43,7 +43,7 @@ internal static class TransferPayloadCodec
         try
         {
             using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (file.Length > MaxBytes) throw new InvalidDataException("Legacy transfers exceed coordinated limit.");
+            if (file.Length > MaxBytes) throw new InvalidDataException("Legacy transfers exceed API save-data size limit.");
             using var buffer = new MemoryStream(); var chunk = new byte[8192]; int read;
             while ((read = file.Read(chunk, 0, chunk.Length)) > 0)
             {

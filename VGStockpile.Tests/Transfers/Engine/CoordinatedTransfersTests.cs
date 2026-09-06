@@ -46,6 +46,17 @@ public sealed class CoordinatedTransfersTests
     }
 
     [Fact]
+    public void SaveWithoutLegacyTransfersStartsEmptyWithoutImport()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "stockpile-fresh-" + Guid.NewGuid().ToString("N"));
+        var api = new Api();
+        using var controller = new CoordinatedTransfers(api, api, null, false, _ => { }, () => { }, _ => { });
+        api.Restore(null, Path.Combine(root, "new.save"));
+        Assert.Empty(TransferPayloadCodec.Decode(api.Provider!.Capture()).Items);
+        Assert.False(Directory.Exists(root));
+    }
+
+    [Fact]
     public void LegacyImportIsExplicitPreservedAndKnownPayloadTakesPrecedence()
     {
         var root = Path.Combine(Path.GetTempPath(), "stockpile-coord-" + Guid.NewGuid().ToString("N"));
@@ -56,7 +67,7 @@ public sealed class CoordinatedTransfersTests
             var original = TransferPayloadCodec.Encode(State()); File.WriteAllBytes(path, original);
             var api = new Api();
             using (var off = new CoordinatedTransfers(api, api, null, false, _ => { }, () => { }, _ => { }))
-            { api.Restore(null, save); Assert.Empty(TransferPayloadCodec.Decode(api.Provider!.Capture()).Items); }
+            { Assert.Throws<InvalidDataException>(() => api.Restore(null, save)); Assert.Equal(original, File.ReadAllBytes(path)); }
             using var on = new CoordinatedTransfers(api, api, null, true, _ => { }, () => { }, _ => { });
             api.Restore(null, save); Assert.Equal(original, api.Provider!.Capture());
             Assert.Equal(original, File.ReadAllBytes(path)); Assert.Single(Directory.GetFiles(root));

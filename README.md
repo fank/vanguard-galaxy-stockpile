@@ -60,7 +60,7 @@ Queue restoration waits for PlayerReady; mutations/ticks wait for the matching G
 
 SaveStarted captures the queue without changing vanilla data; only its matching SaveSucceeded writes that snapshot to the reported destination. It is after vanilla's caller snapshot construction, not a pre-serialization hook. Failed/skipped saves leave sidecars unchanged. Sidecar write failures pause mutations (jobs stay visible) until a later successful save retries persistence. Corrupt, unreadable or newer-version sidecars disable restoration for that attempt and are never intentionally overwritten. Empty queues do not create new sidecars. There is no cross-file transaction or rollback guarantee. Unsaved transfer progress is lost with unsaved vanilla changes.
 
-Schema is unchanged. With transfers disabled, pending-job warnings wait for an actual HUD. Tests cover pure overview/transfer logic and lifecycle guards; native migration qualification is still pending. API RuntimeQualified remains false.
+Schema is unchanged. With transfers disabled, pending-job warnings wait for an actual HUD. Tests cover pure overview/transfer logic and lifecycle guards. Controlled native coverage includes save/reload, real transfer inventory/credit changes, journal coexistence, refusal and teardown. Full owner acceptance remains separate; API RuntimeQualified remains false.
 
 ## License
 

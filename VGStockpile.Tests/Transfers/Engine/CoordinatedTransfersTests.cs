@@ -68,6 +68,15 @@ public sealed class CoordinatedTransfersTests
             var api = new Api();
             using (var off = new CoordinatedTransfers(api, api, null, false, _ => { }, () => { }, _ => { }))
             { Assert.Throws<InvalidDataException>(() => api.Restore(null, save)); Assert.Equal(original, File.ReadAllBytes(path)); }
+            using (var file = File.OpenWrite(path)) file.SetLength(TransferPayloadCodec.MaxBytes + 1L);
+            string? warning = null;
+            using (var large = new CoordinatedTransfers(api, api, null, false, _ => { }, () => { }, message => warning = message))
+            {
+                Assert.Throws<InvalidDataException>(() => api.Restore(null, save));
+                Assert.Contains("ImportLegacySidecars", warning!);
+                Assert.Equal(TransferPayloadCodec.MaxBytes + 1L, new FileInfo(path).Length);
+            }
+            File.WriteAllBytes(path, original);
             using var on = new CoordinatedTransfers(api, api, null, true, _ => { }, () => { }, _ => { });
             api.Restore(null, save); Assert.Equal(original, api.Provider!.Capture());
             Assert.Equal(original, File.ReadAllBytes(path)); Assert.Single(Directory.GetFiles(root));

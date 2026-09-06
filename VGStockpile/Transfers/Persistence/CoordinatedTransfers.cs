@@ -31,8 +31,18 @@ internal sealed class CoordinatedTransfers : ITransferPersistence
                     bool imported = false;
                     if (payload == null && session.SavePath != null)
                     {
-                        payload = TransferPayloadCodec.ReadLegacy(SavePathResolver.Sidecar(session.SavePath));
-                        if (payload != null && !importLegacy) throw new System.IO.InvalidDataException("Existing transfer save data found. Enable ImportLegacySidecars to read it, or disable UseApiSaveData to keep legacy saves.");
+                        var path = SavePathResolver.Sidecar(session.SavePath);
+                        if (importLegacy) payload = TransferPayloadCodec.ReadLegacy(path);
+                        else
+                        {
+                            try
+                            {
+                                using var file = new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+                                throw new System.IO.InvalidDataException("Existing transfer save data found. Enable ImportLegacySidecars to read it, or disable UseApiSaveData to keep legacy saves.");
+                            }
+                            catch (System.IO.FileNotFoundException) { }
+                            catch (System.IO.DirectoryNotFoundException) { }
+                        }
                         imported = payload != null;
                     }
                     var state = payload == null ? TransferSidecar.Empty() : TransferPayloadCodec.Decode(payload);

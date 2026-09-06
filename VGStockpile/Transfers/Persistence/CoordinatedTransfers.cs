@@ -29,8 +29,22 @@ internal sealed class CoordinatedTransfers : ITransferPersistence
                 {
                     Clear(); _session = session.Id;
                     bool imported = false;
-                    if (payload == null && importLegacy && session.SavePath != null)
-                    { payload = TransferPayloadCodec.ReadLegacy(SavePathResolver.Sidecar(session.SavePath)); imported = payload != null; }
+                    if (payload == null && session.SavePath != null)
+                    {
+                        var path = SavePathResolver.Sidecar(session.SavePath);
+                        if (importLegacy) payload = TransferPayloadCodec.ReadLegacy(path);
+                        else
+                        {
+                            try
+                            {
+                                using var file = new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+                                throw new System.IO.InvalidDataException("Existing transfer save data found. Enable ImportLegacySidecars to read it, or disable UseApiSaveData to keep legacy saves.");
+                            }
+                            catch (System.IO.FileNotFoundException) { }
+                            catch (System.IO.DirectoryNotFoundException) { }
+                        }
+                        imported = payload != null;
+                    }
                     var state = payload == null ? TransferSidecar.Empty() : TransferPayloadCodec.Decode(payload);
                     _retained = state; _engine?.Restore(state);
                     if (engine == null && state.Items.Count > 0) disabledPending(state.Items.Count);
@@ -38,7 +52,7 @@ internal sealed class CoordinatedTransfers : ITransferPersistence
                 }
                 catch (Exception error)
                 {
-                    warn("Coordinated transfer restore failed: " + error.GetType().Name + ": " + error.Message);
+                    warn("Transfer save-data restore failed: " + error.GetType().Name + ": " + error.Message);
                     throw;
                 }
             }, TransferPayloadCodec.IsValid));

@@ -23,12 +23,12 @@ namespace VGStockpile;
 
 [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
 [BepInProcess("VanguardGalaxy.exe")]
-[BepInDependency(ModApi.PluginId, "0.1.1")]
+[BepInDependency(ModApi.PluginId, "0.1.2")]
 public class Plugin : BaseUnityPlugin
 {
     public const string PluginGuid    = "vgstockpile";
     public const string PluginName    = "Vanguard Galaxy Stockpile";
-    public const string PluginVersion = "0.6.0";
+    public const string PluginVersion = "0.7.0";
 
     internal static Plugin          Instance { get; private set; } = null!;
     internal static ManualLogSource Log      { get; private set; } = null!;
@@ -53,7 +53,8 @@ public class Plugin : BaseUnityPlugin
     internal CreditsMutator?          _credits;
     internal StationContextAdapter?   _ctxAdapter;
 
-    private TransferLifecycle? _lifecycle;
+    private ITransferPersistence? _lifecycle;
+    private string? _lastPersistenceStatus;
     private TransferEngineDriver? _driver;
     private int _pendingWarning;
 
@@ -77,7 +78,7 @@ public class Plugin : BaseUnityPlugin
             || !TransferLifecycle.IsCompatible(apiPlugin.Metadata.Version, api))
         {
             enabled = false;
-            Log.LogError("Requires VGModAPI 0.1.1+ within 0.1.x with lifecycle/save capabilities; Stockpile disabled without touching sidecars.");
+            Log.LogError("Requires VGModAPI 0.1.2+ within 0.1.x with lifecycle/save capabilities; Stockpile disabled without touching sidecars.");
             return;
         }
         try
@@ -105,8 +106,12 @@ public class Plugin : BaseUnityPlugin
             // HUD readiness remains tied to the inspected SidePanel.Start boundary.
             _harmony = new Harmony(PluginGuid);
             _harmony.PatchAll(typeof(SidePanelReadyPatch));
-            _lifecycle = new TransferLifecycle(api!, _engine, store, count => _pendingWarning = count,
-                ResetTransferUi, message => Log.LogWarning(message));
+            var coordinated = Config.Bind("Persistence", "UseCoordinatedPersistence", false, "Experimental; requires explicitly enabled VGModAPI persistence.").Value;
+            var importLegacy = Config.Bind("Persistence", "ImportLegacySidecars", false, "Explicit read-only adoption when this owner has no coordinated data; no historical snapshot consistency inferred.").Value;
+            _lifecycle = coordinated
+                ? new CoordinatedTransfers(api!, ModApi.Persistence ?? throw new System.InvalidOperationException("Coordinated persistence unavailable; no legacy fallback."), _engine, importLegacy,
+                    count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message))
+                : new TransferLifecycle(api!, _engine, store, count => _pendingWarning = count, ResetTransferUi, message => Log.LogWarning(message));
             Log.LogInfo($"{PluginName} v{PluginVersion} loaded; waiting for SidePanel. API remains experimental.");
         }
         catch (System.Exception error)
@@ -126,6 +131,11 @@ public class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        if (_lifecycle is CoordinatedTransfers coordinated && coordinated.Status != _lastPersistenceStatus)
+        {
+            _lastPersistenceStatus = coordinated.Status;
+            Log.LogInfo("Coordinated transfer persistence status: " + _lastPersistenceStatus);
+        }
         if (_pendingWarning <= 0 || !_icon || _lifecycle?.CanOperate != true) return;
         var count = _pendingWarning;
         _pendingWarning = 0;

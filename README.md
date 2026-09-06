@@ -17,7 +17,7 @@ A BepInEx 5 plugin that adds a HUD button (top-right) which opens a single windo
 ## Install
 
 1. Install BepInEx 5.x in your Vanguard Galaxy folder.
-2. Install [VGModAPI 0.1.1+ within 0.1.x](https://github.com/fankserver/vanguard-galaxy-api). Keep one canonical API copy; do not duplicate its Abstractions DLL in consumer folders.
+2. Install [VGModAPI 0.1.2+ within 0.1.x](https://github.com/fankserver/vanguard-galaxy-api). Keep one canonical API copy; do not duplicate its Abstractions DLL in consumer folders.
 3. Drop the `VGStockpile/` folder from the release zip into `BepInEx/plugins/`, including Newtonsoft.Json and notices.
 4. Launch the game. Missing/unsupported API or unavailable lifecycle/save capabilities disable Stockpile before sidecar operations.
 
@@ -59,6 +59,12 @@ Three internal areas:
 Queue restoration waits for PlayerReady; mutations/ticks wait for the matching GameplayInitialized session and run outside API callback delivery or in-flight saves. Session replacement clears pending memory without returning old-world inventory into a new world. HUD attachment still uses SidePanel.Start—not a global readiness guess.
 
 SaveStarted captures the queue without changing vanilla data; only its matching SaveSucceeded writes that snapshot to the reported destination. It is after vanilla's caller snapshot construction, not a pre-serialization hook. Failed/skipped saves leave sidecars unchanged. Sidecar write failures pause mutations (jobs stay visible) until a later successful save retries persistence. Corrupt, unreadable or newer-version sidecars disable restoration for that attempt and are never intentionally overwritten. Empty queues do not create new sidecars. There is no cross-file transaction or rollback guarantee. Unsaved transfer progress is lost with unsaved vanilla changes.
+
+### Experimental coordinated storage (0.7)
+
+Default persistence remains the legacy sidecar path described above. After enabling VGModAPI persistence, separately set `[Persistence] UseCoordinatedPersistence = true` in `vgstockpile.cfg`. Unavailable service fails closed, with no legacy fallback. Coordinated mode stores transfer JSON in the API owner envelope (1 MiB limit), never writes legacy sidecars, and gates both queries and mutations on registration readiness. Capture bypasses public query gates without changing reservation, fee, cancellation or delivery logic. Disabled transfers retain loaded jobs for subsequent saves; warning delivery still waits for the HUD.
+
+`ImportLegacySidecars = true` explicitly permits read-only adoption when this owner has no coordinated data. It does not prove that historical sidecar bytes match the vanilla snapshot. Corrupt, future-version, unreadable, malformed or oversized inputs block restoration without overwrite/quarantine. Existing logical transfer schema is retained, including the legacy reader's version-0 compatibility. Registration disposal pauses coordinated persistence until another load; status changes are logged. Native two-consumer/recovery qualification and full owner acceptance remain outstanding.
 
 Schema is unchanged. With transfers disabled, pending-job warnings wait for an actual HUD. Tests cover pure overview/transfer logic and lifecycle guards. Controlled native coverage includes save/reload, real transfer inventory/credit changes, journal coexistence, refusal and teardown. Full owner acceptance remains separate; API RuntimeQualified remains false.
 

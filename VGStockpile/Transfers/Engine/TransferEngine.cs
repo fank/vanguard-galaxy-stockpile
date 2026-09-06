@@ -17,6 +17,7 @@ internal sealed class TransferEngine
     private readonly ICreditsMutator _credits;
     private readonly TransferConfig _cfg;
     internal Func<bool>? OperationAllowed { get; set; }
+    internal bool ValidateEtaForPersistence { get; set; }
     internal Func<bool>? QueryAllowed { get; set; }
     internal Func<TransferError>? UnavailableReason { get; set; }
     private bool CanOperate => OperationAllowed?.Invoke() != false;
@@ -50,6 +51,8 @@ internal sealed class TransferEngine
         var totalUnits = 0; for (var i = 0; i < manifest.Count; i++) totalUnits += manifest[i].Quantity;
         var fee  = FeeCalculator.Compute(jumpDistance, totalUnits, _cfg);
         var eta  = EtaCalculator.ComputeSeconds(jumpDistance, _cfg);
+        if (ValidateEtaForPersistence && (float.IsNaN(eta) || float.IsInfinity(eta) || eta < 0))
+            return new TransferRequestResult(false, TransferError.PersistenceUnavailable, null);
 
         if (!_credits.TryDebit(fee))
             return new TransferRequestResult(false, TransferError.InsufficientCredits, null);

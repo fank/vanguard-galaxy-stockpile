@@ -86,6 +86,22 @@ public sealed class CoordinatedTransfersTests
     public void RequiresNewPersistenceContract(string version, bool expected)
         => Assert.Equal(expected, TransferLifecycle.IsCompatible(new Version(version), new Api()));
 
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(-1f)]
+    [InlineData(float.PositiveInfinity)]
+    public void InvalidEtaCannotDebitOrReserve(float eta)
+    {
+        var api = new Api(); var materials = new Materials(); var credits = new Credits();
+        var cfg = TransferConfig.Defaults() with { EtaBaseSeconds = eta, EtaMinSeconds = eta, EtaMaxSeconds = eta };
+        var engine = new TransferEngine(new TransferQueue(0), materials, credits, cfg);
+        using var controller = new CoordinatedTransfers(api, api, engine, false, _ => { }, () => { }, _ => { });
+        api.Restore(null);
+        var result = engine.RequestTransfer("src", "dst", new[] { new TransferManifestLine("iron", 10) }, 0);
+        Assert.False(result.IsSuccess); Assert.Equal(TransferError.PersistenceUnavailable, result.Error);
+        Assert.Equal(10000, credits.Current); Assert.Equal(100, materials.Source); Assert.Empty(engine.Pending);
+    }
+
     private static TransferSidecar State() => new(1, new[] { new TransferRequest("id", "src", "dst", new[] { new TransferManifestLine("iron", 10) }, 10, 0, 60, 50, TransferStatus.Pending) });
     private sealed class Materials : IMaterialStorageMutator
     {

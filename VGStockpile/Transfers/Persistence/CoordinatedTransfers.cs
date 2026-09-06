@@ -25,19 +25,28 @@ internal sealed class CoordinatedTransfers : ITransferPersistence
             () => TransferPayloadCodec.Encode(_engine?.Snapshot() ?? _retained),
             (session, payload) =>
             {
-                Clear(); _session = session.Id;
-                bool imported = false;
-                if (payload == null && importLegacy && session.SavePath != null)
-                { payload = TransferPayloadCodec.ReadLegacy(SavePathResolver.Sidecar(session.SavePath)); imported = payload != null; }
-                var state = payload == null ? TransferSidecar.Empty() : TransferPayloadCodec.Decode(payload);
-                _retained = state; _engine?.Restore(state);
-                if (engine == null && state.Items.Count > 0) disabledPending(state.Items.Count);
-                if (imported) warn("Explicit read-only legacy transfer adoption; no historical snapshot consistency inferred.");
+                try
+                {
+                    Clear(); _session = session.Id;
+                    bool imported = false;
+                    if (payload == null && importLegacy && session.SavePath != null)
+                    { payload = TransferPayloadCodec.ReadLegacy(SavePathResolver.Sidecar(session.SavePath)); imported = payload != null; }
+                    var state = payload == null ? TransferSidecar.Empty() : TransferPayloadCodec.Decode(payload);
+                    _retained = state; _engine?.Restore(state);
+                    if (engine == null && state.Items.Count > 0) disabledPending(state.Items.Count);
+                    if (imported) warn("Explicit read-only legacy transfer adoption; no historical snapshot consistency inferred.");
+                }
+                catch (Exception error)
+                {
+                    warn("Coordinated transfer restore failed: " + error.GetType().Name + ": " + error.Message);
+                    throw;
+                }
             }, TransferPayloadCodec.IsValid));
         try { _subscription = lifecycle.Subscribe("vgstockpile.coordinated-ui", Observe); }
         catch { _registration.Dispose(); throw; }
         if (engine != null)
         {
+            engine.ValidateEtaForPersistence = true;
             engine.OperationAllowed = () => CanOperate;
             engine.QueryAllowed = () => CanOperate;
             engine.UnavailableReason = () => Status is "inactive" or "ready" or "migration-pending"
